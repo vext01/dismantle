@@ -6,11 +6,17 @@
 #include <libelf/gelf.h>
 #include <libelf/libelf.h>
 
+
+Elf			*elf = NULL;
+FILE			*f;
+ud_t			 ud;
+
+
 /*
  * disassemble a single operation
  */
 int
-dm_disasm_op(ud_t *ud, FILE *f, int addr)
+dm_disasm_op(long addr)
 {
 	unsigned int		 read;
 	char			*hex;
@@ -20,11 +26,11 @@ dm_disasm_op(ud_t *ud, FILE *f, int addr)
 		return (0);
 	}
 
-	ud_set_pc(ud, addr);
-	read = ud_disassemble(ud);
-	hex = ud_insn_hex(ud);
+	ud_set_pc(&ud, addr);
+	read = ud_disassemble(&ud);
+	hex = ud_insn_hex(&ud);
 
-	printf("0x%08x:  %-20s%s\n", addr, hex, ud_insn_asm(ud));
+	printf("0x%08lx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 	addr += read;
 
 	return (addr + read);
@@ -34,32 +40,16 @@ dm_disasm_op(ud_t *ud, FILE *f, int addr)
  * get the offset of a section name
  */
 long
-dm_find_section(FILE *f, char *find_sec)
+dm_find_section(char *find_sec)
 {
-	Elf			*elf;
-	Elf_Kind		 ek;
 	Elf_Scn			*sec;
-	size_t			 shdrs_idx, i;
+	size_t			 shdrs_idx;
 	GElf_Shdr		 shdr;
 	char			*sec_name;
 	long			 ret = -1;
 
-	if(elf_version(EV_CURRENT) == EV_NONE) {
-		fprintf(stderr, "elf_version: %s\n", elf_errmsg(-1));
+	if (elf == NULL)
 		goto clean;
-	}
-
-	if ((elf = elf_begin(fileno(f), ELF_C_READ, NULL)) == NULL) {
-		fprintf(stderr, "elf_begin: %s\n", elf_errmsg(-1));
-		goto clean;
-	}
-
-	ek = elf_kind(elf);
-
-	if (ek != ELF_K_ELF) {
-		fprintf(stderr, "Does not appear to have an ELF header\n");
-		goto clean;
-	}
 
 	if (elf_getshdrstrndx(elf, &shdrs_idx) != 0) {
 		fprintf(stderr, "elf_getshdrsrtndx: %s", elf_errmsg(-1));
@@ -84,45 +74,57 @@ dm_find_section(FILE *f, char *find_sec)
 			break;
 		}
 
-		printf("0x%08x: %s\n", (long) shdr.sh_offset, sec_name);
+		printf("0x%08lx: %s\n", (long) shdr.sh_offset, sec_name);
 	}
 
 	printf("\n");
 
 clean:
-	elf_end(elf);
 	return (ret);
 }
 
-
-
-void
-dm_dump_elf_info(FILE *f)
+int
+dm_init_elf()
 {
-	Elf			*elf;
 	Elf_Kind		 ek;
-	GElf_Phdr		 phdr;
-	Elf_Scn			*sec;
-	size_t			 num_phdrs, shdrs_idx, i;
-	GElf_Shdr		 shdr;
-	char			*sec_name;
 
 	if(elf_version(EV_CURRENT) == EV_NONE) {
 		fprintf(stderr, "elf_version: %s\n", elf_errmsg(-1));
-		goto clean;
+		goto err;
 	}
 
 	if ((elf = elf_begin(fileno(f), ELF_C_READ, NULL)) == NULL) {
 		fprintf(stderr, "elf_begin: %s\n", elf_errmsg(-1));
-		goto clean;
+		goto err;
 	}
 
 	ek = elf_kind(elf);
 
 	if (ek != ELF_K_ELF) {
 		fprintf(stderr, "Does not appear to have an ELF header\n");
-		goto clean;
+		goto err;
 	}
+
+	return (0);
+err:
+	elf_end(elf);
+	elf = NULL;
+
+	return (-1);
+}
+
+
+void
+dm_dump_elf_info(FILE *f)
+{
+	GElf_Phdr		 phdr;
+	Elf_Scn			*sec;
+	size_t			 num_phdrs, shdrs_idx, i;
+	GElf_Shdr		 shdr;
+	char			*sec_name;
+
+	if (elf == NULL)
+		goto clean;
 
 	if (elf_getphdrnum(elf, &num_phdrs) != 0) {
 		fprintf(stderr, "elf_getphdrnum: %s", elf_errmsg ( -1));
@@ -130,7 +132,7 @@ dm_dump_elf_info(FILE *f)
 	}
 
 	/* Get program header table */
-	printf("Found %u program header records:\n", num_phdrs);
+	printf("Found %lu program header records:\n", num_phdrs);
 
 	for (i = 0; i < num_phdrs; i++) {
 		if (gelf_getphdr(elf, i, &phdr) != &phdr) {
@@ -138,9 +140,9 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		printf("0x%08x: %d", (long) phdr.p_offset, phdr.p_type);
+		printf("0x%08lx: %d", (long) phdr.p_offset, phdr.p_type);
 		if (phdr.p_flags & PF_X)
-			printf("Executable");
+			printf(" Executable");
 		printf("\n");
 	}
 
@@ -150,7 +152,7 @@ dm_dump_elf_info(FILE *f)
 		goto clean;
 	}
 
-	printf("\nFound %d section header records:\n", shdrs_idx);
+	printf("\nFound %lu section header records:\n", shdrs_idx);
 	sec = NULL ;
 	while ((sec = elf_nextscn(elf, sec)) != NULL) {
 		if (gelf_getshdr(sec, &shdr) != &shdr) {
@@ -164,21 +166,17 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		printf("0x%08x: %s\n", (long) shdr.sh_offset, sec_name);
+		printf("0x%08lx: %s\n", (long) shdr.sh_offset, sec_name);
 	}
 
-	printf("\n");
-
 clean:
-	elf_end(elf);
+	printf("\n");
 }
 
 int
 main(int argc, char **argv)
 {
-	ud_t			 ud;
 	int			 i, ops = 8;
-	FILE			*f;
 	long			addr;
 
 	if (argc == 3) {
@@ -191,6 +189,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
+	dm_init_elf();
 	dm_dump_elf_info(f);
 
 	ud_init(&ud);
@@ -198,11 +197,11 @@ main(int argc, char **argv)
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
-	addr = dm_find_section(f, ".text");
-	printf("Seeking to .text at %08x\n", addr);
+	addr = dm_find_section(".text");
+	printf("Seeking to .text at %08lx\n", addr);
 
 	for (i = 0; i < ops; i++)
-		addr = dm_disasm_op(&ud, f, addr);
+		addr = dm_disasm_op(addr);
 
 	return (EXIT_SUCCESS);
 }
