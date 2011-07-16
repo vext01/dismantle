@@ -199,7 +199,7 @@ dm_cmd_seek(char **args)
 	if (args[0][0] == '.')
 		to = dm_find_section(args[0]);
 	else
-		to = atoll(args[0]);
+		to = strtoll(args[0], NULL, 0);
 
 	dm_seek(to);
 
@@ -209,14 +209,13 @@ dm_cmd_seek(char **args)
 int
 dm_cmd_dis(char **args)
 {
-	int			ops = atoi(args[0]), i;
+	int			ops = strtoll(args[0], NULL, 0), i;
 	long long		addr = cur_addr;
 
 	for (i = 0; i < ops; i++)
 		addr = dm_disasm_op(addr);
 
 	dm_seek(cur_addr); /* rewind back */
-
 	return (0);
 }
 
