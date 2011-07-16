@@ -176,6 +176,71 @@ clean:
 	printf("\n");
 }
 
+int
+dm_cmd_info(char **args)
+{
+	printf("INFO\n");
+
+	return (0);
+}
+
+int
+dm_cmd_seek(char **args)
+{
+	printf("SEEK\n");
+
+	return (0);
+}
+
+int
+dm_cmd_dis(char **args)
+{
+	printf("DIS\n");
+
+	return (0);
+}
+
+struct dm_cmd_sw {
+	char			*cmd;
+	uint8_t			 args;
+	int			(*handler)(char **args);
+};
+
+struct dm_cmd_sw dm_cmds[] = {
+	{"info", 1, dm_cmd_info},
+	{"seek", 1, dm_cmd_seek},
+	{"dis", 1, dm_cmd_seek},
+	{NULL, 0, NULL}
+};
+
+#define DM_CMD_MAX_TOKS			8
+void
+dm_parse_cmd(char *line)
+{
+	int			 found_toks = 0;
+	char			*tok, *next = line;
+	char			*toks[DM_CMD_MAX_TOKS];
+	struct dm_cmd_sw	*cmd = dm_cmds;
+
+	while ((found_toks < DM_CMD_MAX_TOKS) && (tok = strsep(&next, " "))) {
+		toks[found_toks++] = tok;
+	}
+
+	while (cmd->cmd != NULL) {
+		if ((strcmp(cmd->cmd, toks[0]) != 0) ||
+		    (cmd->args != found_toks - 1)) {
+			cmd++;
+			continue;
+		}
+
+		cmd->handler(&toks[1]);
+		break;
+	}
+
+	if (cmd->cmd == NULL)
+		printf("parse error\n");
+}
+
 #define DM_MAX_PROMPT			16
 void
 dm_interp()
@@ -186,9 +251,10 @@ dm_interp()
 	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
 
 	while((line = readline(prompt)) != NULL) {
-		printf("got '%s'\n", line);
-		if (*line)
+		if (*line) {
+			dm_parse_cmd(line);
 			add_history(line);
+		}
 	}
 }
 
