@@ -13,6 +13,9 @@ FILE			*f;
 ud_t			 ud;
 long			 cur_addr;
 
+#define DM_MAX_PROMPT			32
+char			prompt[DM_MAX_PROMPT];
+
 /*
  * disassemble a single operation
  */
@@ -66,11 +69,7 @@ dm_find_section(char *find_sec)
 			ret = shdr.sh_offset;
 			break;
 		}
-
-		printf("0x%08lx: %s\n", (long) shdr.sh_offset, sec_name);
 	}
-
-	printf("\n");
 
 clean:
 	return (ret);
@@ -194,7 +193,16 @@ dm_seek(long long addr)
 int
 dm_cmd_seek(char **args)
 {
-	dm_seek(atoi(args[0]));
+	long long			to;
+
+	/* seeking to a section? */
+	if (args[0][0] == '.')
+		to = dm_find_section(args[0]);
+	else
+		to = atoll(args[0]);
+
+	dm_seek(to);
+
 	return (0);
 }
 
@@ -212,6 +220,17 @@ dm_cmd_dis(char **args)
 	return (0);
 }
 
+int
+dm_cmd_dis_noargs(char **args)
+{
+	char			*arg ="8";
+
+	dm_cmd_dis(&arg);
+	return (0);
+}
+
+
+
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
@@ -222,6 +241,7 @@ struct dm_cmd_sw dm_cmds[] = {
 	{"info", 1, dm_cmd_info},
 	{"seek", 1, dm_cmd_seek},
 	{"dis", 1, dm_cmd_dis},
+	{"dis", 0, dm_cmd_dis_noargs},
 	{NULL, 0, NULL}
 };
 
@@ -253,20 +273,24 @@ dm_parse_cmd(char *line)
 		printf("parse error\n");
 }
 
-#define DM_MAX_PROMPT			16
+void
+dm_update_prompt()
+{
+	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
+}
+
 void
 dm_interp()
 {
 	char			*line;
-	char			prompt[DM_MAX_PROMPT];
 
-	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
+	dm_update_prompt();
 	while((line = readline(prompt)) != NULL) {
 		if (*line) {
 			add_history(line);
 			dm_parse_cmd(line);
 		}
-		snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
+		dm_update_prompt();
 	}
 }
 
