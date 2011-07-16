@@ -17,22 +17,14 @@ long			 cur_addr;
  * disassemble a single operation
  */
 int
-dm_disasm_op(long addr)
+dm_disasm_op(long long addr)
 {
 	unsigned int		 read;
 	char			*hex;
 
-	if (fseek(f, addr, SEEK_SET) < 0) {
-		perror("seek");
-		return (0);
-	}
-
-	ud_set_pc(&ud, addr);
 	read = ud_disassemble(&ud);
 	hex = ud_insn_hex(&ud);
-
-	printf("0x%08lx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
-	addr += read;
+	printf("0x%08llx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
 	return (addr + read);
 }
@@ -185,17 +177,37 @@ dm_cmd_info(char **args)
 }
 
 int
+dm_seek(long long addr)
+{
+	cur_addr = addr;
+
+	if (fseek(f, cur_addr, SEEK_SET) < 0) {
+		perror("seek");
+		return (-1);
+	}
+
+	ud_set_pc(&ud, cur_addr);
+
+	return (0);
+}
+
+int
 dm_cmd_seek(char **args)
 {
-	printf("SEEK\n");
-
+	dm_seek(atoi(args[0]));
 	return (0);
 }
 
 int
 dm_cmd_dis(char **args)
 {
-	printf("DIS\n");
+	int			ops = atoi(args[0]), i;
+	long long		addr = cur_addr;
+
+	for (i = 0; i < ops; i++)
+		addr = dm_disasm_op(addr);
+
+	dm_seek(cur_addr); /* rewind back */
 
 	return (0);
 }
@@ -209,7 +221,7 @@ struct dm_cmd_sw {
 struct dm_cmd_sw dm_cmds[] = {
 	{"info", 1, dm_cmd_info},
 	{"seek", 1, dm_cmd_seek},
-	{"dis", 1, dm_cmd_seek},
+	{"dis", 1, dm_cmd_dis},
 	{NULL, 0, NULL}
 };
 
@@ -249,20 +261,18 @@ dm_interp()
 	char			prompt[DM_MAX_PROMPT];
 
 	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
-
 	while((line = readline(prompt)) != NULL) {
 		if (*line) {
-			dm_parse_cmd(line);
 			add_history(line);
+			dm_parse_cmd(line);
 		}
+		snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
 	}
 }
 
 int
 main(int argc, char **argv)
 {
-	int			 i, ops = 8;
-
 	if (argc != 2) {
 		printf("Usage: XXX\n");
 		exit(1);
@@ -274,18 +284,15 @@ main(int argc, char **argv)
 	}
 
 	dm_init_elf();
-	dm_dump_elf_info(f);
+	//dm_dump_elf_info(f);
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, f);
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
-	cur_addr = dm_find_section(".text");
+	dm_seek(dm_find_section(".text"));
 	printf("Seeking to .text at %08lx\n", cur_addr);
-
-	for (i = 0; i < ops; i++)
-		cur_addr = dm_disasm_op(cur_addr);
 
 	dm_interp();
 
