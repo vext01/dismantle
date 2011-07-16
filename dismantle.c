@@ -103,7 +103,7 @@ dm_dump_elf_info(FILE *f)
 	Elf_Kind		 ek;
 	GElf_Phdr		 phdr;
 	Elf_Scn			*sec;
-	size_t			 num_phdrs, num_shdrs, i;
+	size_t			 num_phdrs, shdrs_idx, i;
 	GElf_Shdr		 shdr;
 	char			*sec_name;
 
@@ -145,12 +145,12 @@ dm_dump_elf_info(FILE *f)
 	}
 
 	/* Get section header table */
-	if (elf_getshdrstrndx(elf, &num_shdrs) != 0) {
+	if (elf_getshdrstrndx(elf, &shdrs_idx) != 0) {
 		fprintf(stderr, "elf_getshdrsrtndx: %s", elf_errmsg(-1));
 		goto clean;
 	}
 
-	printf("\nFound %d section header records:\n", num_shdrs);
+	printf("\nFound %d section header records:\n", shdrs_idx);
 	sec = NULL ;
 	while ((sec = elf_nextscn(elf, sec)) != NULL) {
 		if (gelf_getshdr(sec, &shdr) != &shdr) {
@@ -158,7 +158,7 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		if ((sec_name = elf_strptr(elf, num_shdrs, shdr.sh_name))
+		if ((sec_name = elf_strptr(elf, shdrs_idx, shdr.sh_name))
 		    == NULL) {
 			fprintf(stderr, "elf_strptr: %s", elf_errmsg(-1));
 			goto clean;
