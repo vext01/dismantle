@@ -34,9 +34,12 @@ void
 dm_parse_elf(FILE *f)
 {
 	Elf			*elf;
-	Elf_Kind		ek;
-	GElf_Phdr		phdr;
-	size_t			num_phdrs, i;
+	Elf_Kind		 ek;
+	GElf_Phdr		 phdr;
+	Elf_Scn			*sec;
+	size_t			 num_phdrs, num_shdrs, i;
+	GElf_Shdr		 shdr;
+	char			*sec_name;
 
 	if(elf_version(EV_CURRENT) == EV_NONE) {
 		fprintf(stderr, "elf_version: %s\n", elf_errmsg(-1));
@@ -64,26 +67,52 @@ dm_parse_elf(FILE *f)
 	default :
 		printf("unknown\n");
 	}
+	printf("\n");
 
 	if (elf_getphdrnum(elf, &num_phdrs) != 0) {
 		fprintf(stderr, "elf_getphdrnum: %s", elf_errmsg ( -1));
 		return;
 	}
 
-	printf("Found %u section headers\n", num_phdrs);
+	/* Get program header table */
+	printf("Found %u program header records:\n", num_phdrs);
 
-	for (i = 0; i < num_phdrs; i ++) {
+	for (i = 0; i < num_phdrs; i++) {
 		if (gelf_getphdr(elf, i, &phdr) != &phdr) {
-			fprintf(stderr, "elf_getphdrnum: %s", elf_errmsg(-1));
+			fprintf(stderr, "elf_getphdr: %s", elf_errmsg(-1));
 			return;
 		}
 
-		printf("0x%08x: ", phdr.p_offset);
-		printf("%d ", phdr.p_type);
+		printf("0x%08x: %d", (long) phdr.p_offset, phdr.p_type);
 		if (phdr.p_flags & PF_X)
 			printf("Executable");
 		printf("\n");
 	}
+
+	/* Get section header table */
+	if (elf_getshdrstrndx(elf, &num_shdrs) != 0) {
+		fprintf(stderr, "elf_getshdrsrtndx: %s", elf_errmsg(-1));
+		return;
+	}
+
+	printf("\nFound %d section header records:\n", num_shdrs);
+	sec = NULL ;
+	while ((sec = elf_nextscn(elf, sec)) != NULL) {
+		if (gelf_getshdr(sec, &shdr) != &shdr) {
+			fprintf(stderr, "gelf_getshdr: %s", elf_errmsg(-1));
+			return;
+		}
+
+		if ((sec_name = elf_strptr(elf, num_shdrs, shdr.sh_name))
+		    == NULL) {
+			fprintf(stderr, "elf_strptr: %s", elf_errmsg(-1));
+			return;
+		}
+
+		printf("0x%08x: %s\n", (long) shdr.sh_offset, sec_name);
+	}
+
+
 
 	printf("\n");
 	(void) elf_end(elf);
