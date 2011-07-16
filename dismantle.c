@@ -5,12 +5,13 @@
 #include <udis86.h>
 #include <libelf/gelf.h>
 #include <libelf/libelf.h>
-
+#include <readline/readline.h>
+#include <readline/history.h>
 
 Elf			*elf = NULL;
 FILE			*f;
 ud_t			 ud;
-
+long			 cur_addr;
 
 /*
  * disassemble a single operation
@@ -113,7 +114,9 @@ err:
 	return (-1);
 }
 
-
+/*
+ * XXX separate
+ */
 void
 dm_dump_elf_info(FILE *f)
 {
@@ -173,18 +176,32 @@ clean:
 	printf("\n");
 }
 
+#define DM_MAX_PROMPT			16
+void
+dm_interp()
+{
+	char			*line;
+	char			prompt[DM_MAX_PROMPT];
+
+	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
+
+	while((line = readline(prompt)) != NULL) {
+		printf("got '%s'\n", line);
+		add_history(line);
+	}
+}
+
 int
 main(int argc, char **argv)
 {
 	int			 i, ops = 8;
-	long			addr;
 
-	if (argc == 3) {
-		addr = atoi(argv[1]);
-		ops = atoi(argv[2]);
+	if (argc != 2) {
+		printf("Usage: XXX\n");
+		exit(1);
 	}
 
-	if ((f = fopen("/bin/ls", "r")) == NULL) {
+	if ((f = fopen(argv[1], "r")) == NULL) {
 		perror("open");
 		exit(1);
 	}
@@ -197,11 +214,13 @@ main(int argc, char **argv)
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
-	addr = dm_find_section(".text");
-	printf("Seeking to .text at %08lx\n", addr);
+	cur_addr = dm_find_section(".text");
+	printf("Seeking to .text at %08lx\n", cur_addr);
 
 	for (i = 0; i < ops; i++)
-		addr = dm_disasm_op(addr);
+		cur_addr = dm_disasm_op(cur_addr);
+
+	dm_interp();
 
 	return (EXIT_SUCCESS);
 }
