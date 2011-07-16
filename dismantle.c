@@ -187,7 +187,8 @@ dm_interp()
 
 	while((line = readline(prompt)) != NULL) {
 		printf("got '%s'\n", line);
-		add_history(line);
+		if (*line)
+			add_history(line);
 	}
 }
 
