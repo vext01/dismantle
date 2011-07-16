@@ -11,7 +11,7 @@
 Elf			*elf = NULL;
 FILE			*f;
 ud_t			 ud;
-long			 cur_addr;
+long long		 cur_addr;
 
 #define DM_MAX_PROMPT			32
 char			prompt[DM_MAX_PROMPT];
@@ -35,14 +35,14 @@ dm_disasm_op(long long addr)
 /*
  * get the offset of a section name
  */
-long
+long long
 dm_find_section(char *find_sec)
 {
 	Elf_Scn			*sec;
 	size_t			 shdrs_idx;
 	GElf_Shdr		 shdr;
 	char			*sec_name;
-	long			 ret = -1;
+	long long		 ret = -1;
 
 	if (elf == NULL)
 		goto clean;
@@ -134,7 +134,7 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		printf("0x%08lx: %d", (long) phdr.p_offset, phdr.p_type);
+		printf("0x%08llx: %d", (long long) phdr.p_offset, phdr.p_type);
 		if (phdr.p_flags & PF_X)
 			printf(" Executable");
 		printf("\n");
@@ -160,7 +160,7 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		printf("0x%08lx: %s\n", (long) shdr.sh_offset, sec_name);
+		printf("0x%08llx: %s\n", (long long) shdr.sh_offset, sec_name);
 	}
 
 clean:
@@ -276,7 +276,7 @@ dm_parse_cmd(char *line)
 void
 dm_update_prompt()
 {
-	snprintf(prompt, DM_MAX_PROMPT, "[0x%08lx] ", cur_addr);
+	snprintf(prompt, DM_MAX_PROMPT, "[0x%08llx] ", cur_addr);
 }
 
 void
@@ -315,8 +315,8 @@ main(int argc, char **argv)
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
+	/* start at .text */
 	dm_seek(dm_find_section(".text"));
-	printf("Seeking to .text at %08lx\n", cur_addr);
 
 	dm_interp();
 
