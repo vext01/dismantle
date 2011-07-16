@@ -239,9 +239,17 @@ struct dm_cmd_sw {
 
 struct dm_cmd_sw dm_cmds[] = {
 	{"info", 1, dm_cmd_info},
+	{"i", 1, dm_cmd_info},
+
 	{"seek", 1, dm_cmd_seek},
+	{"s", 1, dm_cmd_seek},
+
 	{"dis", 1, dm_cmd_dis},
+	{"pd", 1, dm_cmd_dis},
+
 	{"dis", 0, dm_cmd_dis_noargs},
+	{"pd", 0, dm_cmd_dis_noargs},
+
 	{NULL, 0, NULL}
 };
 
@@ -308,7 +316,6 @@ main(int argc, char **argv)
 	}
 
 	dm_init_elf();
-	//dm_dump_elf_info(f);
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, f);
