@@ -27,7 +27,7 @@ dm_disasm_op(long long addr)
 
 	read = ud_disassemble(&ud);
 	hex = ud_insn_hex(&ud);
-	printf("0x%08llx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
+	printf("    0x%08llx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
 	return (addr + read);
 }
