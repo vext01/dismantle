@@ -47,6 +47,20 @@ struct dm_pht_type {
 	{PT_HIOS,	"PT_HIOS",	"System specific (hi mark)"},
 	{PT_LOPROC,	"PT_LOPROC",	"CPU specific (lo mark)"},
 	{PT_HIPROC,	"PT_HIPROC",	"CPU system-specific (hi mark)"},
+	{-1,		NULL,		NULL},
+};
+
+struct dm_help_rec {
+	char		*cmd;
+	char		*descr;
+} help_recs[] = {
+{"seek/s addr",		"Seek to an address"},
+	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"pht",			"Show program header table"},
+	{"sht",			"Show section header table"},
+	{"help/?",		"Show this help"},
+	{"CTRL+D",		"Exit"},
+	{NULL, 0},
 };
 
 Elf			*elf = NULL;
@@ -269,14 +283,6 @@ clean:
 }
 
 int
-dm_cmd_info(char **args)
-{
-	printf("INFO\n");
-
-	return (0);
-}
-
-int
 dm_seek(long long addr)
 {
 	cur_addr = addr;
@@ -331,7 +337,20 @@ dm_cmd_dis_noargs(char **args)
 	return (0);
 }
 
+int
+dm_cmd_help()
+{
+	struct dm_help_rec	*h = help_recs;
 
+	printf("\n");
+	while (h->cmd != 0) {
+		printf("%-15s   %s\n", h->cmd, h->descr);
+		h++;
+	}
+	printf("\n");
+
+	return (DM_OK);
+}
 
 struct dm_cmd_sw {
 	char			*cmd;
@@ -340,12 +359,12 @@ struct dm_cmd_sw {
 };
 
 struct dm_cmd_sw dm_cmds[] = {
-	{"info", 1, dm_cmd_info},	{"i", 1, dm_cmd_info},
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"pht", 0, dm_cmd_pht},
 	{"sht", 0, dm_cmd_sht},
+	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
 	{NULL, 0, NULL}
 };
 
@@ -402,7 +421,7 @@ int
 main(int argc, char **argv)
 {
 	if (argc != 2) {
-		printf("Usage: XXX\n");
+		printf("Usage: dismantle <elf binary>\n");
 		exit(1);
 	}
 
