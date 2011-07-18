@@ -8,6 +8,12 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#define DM_OK		0
+#define DM_FAIL		-1
+
+#define DM_RULE \
+"----------------------------------------------------------------------------"
+
 Elf			*elf = NULL;
 FILE			*f;
 ud_t			 ud;
@@ -106,16 +112,14 @@ err:
 }
 
 /*
- * XXX separate
+ * show the program header table
  */
-void
-dm_dump_elf_info(FILE *f)
+int
+dm_cmd_pht(char **args)
 {
+	int			 ret = DM_FAIL;
 	GElf_Phdr		 phdr;
-	Elf_Scn			*sec;
-	size_t			 num_phdrs, shdrs_idx, i;
-	GElf_Shdr		 shdr;
-	char			*sec_name;
+	size_t			 num_phdrs, i;
 
 	if (elf == NULL)
 		goto clean;
@@ -139,6 +143,26 @@ dm_dump_elf_info(FILE *f)
 			printf(" Executable");
 		printf("\n");
 	}
+	ret = DM_OK;
+clean:
+	printf("\n");
+	return (ret);
+}
+
+/*
+ * dump the section headers
+ */
+int
+dm_cmd_sht(char **args)
+{
+	Elf_Scn			*sec;
+	size_t			 shdrs_idx;
+	GElf_Shdr		 shdr;
+	char			*sec_name;
+	int			 ret = DM_FAIL;
+
+	if (elf == NULL)
+		goto clean;
 
 	/* Get section header table */
 	if (elf_getshdrstrndx(elf, &shdrs_idx) != 0) {
@@ -147,6 +171,9 @@ dm_dump_elf_info(FILE *f)
 	}
 
 	printf("\nFound %lu section header records:\n", shdrs_idx);
+	printf("%-12s | %-12s\n", "offset", "name");
+	printf("%s\n", DM_RULE);
+
 	sec = NULL ;
 	while ((sec = elf_nextscn(elf, sec)) != NULL) {
 		if (gelf_getshdr(sec, &shdr) != &shdr) {
@@ -154,17 +181,19 @@ dm_dump_elf_info(FILE *f)
 			goto clean;
 		}
 
-		if ((sec_name = elf_strptr(elf, shdrs_idx, shdr.sh_name))
-		    == NULL) {
+		if (!(sec_name = elf_strptr(elf, shdrs_idx, shdr.sh_name))) {
 			fprintf(stderr, "elf_strptr: %s", elf_errmsg(-1));
 			goto clean;
 		}
 
-		printf("0x%08llx: %s\n", (long long) shdr.sh_offset, sec_name);
+		printf("0x%08llx    %-12s\n",
+		    (long long) shdr.sh_offset, sec_name);
 	}
 
+	ret = DM_OK;
 clean:
 	printf("\n");
+	return (ret);
 }
 
 int
@@ -237,18 +266,12 @@ struct dm_cmd_sw {
 };
 
 struct dm_cmd_sw dm_cmds[] = {
-	{"info", 1, dm_cmd_info},
-	{"i", 1, dm_cmd_info},
-
-	{"seek", 1, dm_cmd_seek},
-	{"s", 1, dm_cmd_seek},
-
-	{"dis", 1, dm_cmd_dis},
-	{"pd", 1, dm_cmd_dis},
-
-	{"dis", 0, dm_cmd_dis_noargs},
-	{"pd", 0, dm_cmd_dis_noargs},
-
+	{"info", 1, dm_cmd_info},	{"i", 1, dm_cmd_info},
+	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
+	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
+	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
+	{"pht", 0, dm_cmd_pht},
+	{"sht", 0, dm_cmd_sht},
 	{NULL, 0, NULL}
 };
 
