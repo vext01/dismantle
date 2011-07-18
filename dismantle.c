@@ -14,6 +14,25 @@
 #define DM_RULE \
 "----------------------------------------------------------------------------"
 
+struct dm_pht_type {
+	int		 type_int;
+	char		*type_str;
+	char		*descr;
+} pht_types[] = {
+	{PT_NULL,	"PT_NULL",	"Unused"},
+	{PT_LOAD,	"PT_LOAD",	"Loadable segment"},
+	{PT_DYNAMIC,	"PT_DYNAMIC",	"Dynamic linking info"},
+	{PT_INTERP,	"PT_INTERP",	"Interpreter field"},
+	{PT_NOTE,	"PT_NOTE",	"Auxillary info"},
+	{PT_SHLIB,	"PT_SHLIB",	"Non-standard"},
+	{PT_PHDR,	"PT_PHDR",	"PHT size"},
+	{PT_TLS,	"PT_TLS",	"Thread local storage"},
+	{PT_LOOS,	"PT_LOOS",	"System specific (lo mark)"},
+	{PT_HIOS,	"PT_HIOS",	"System specific (hi mark)"},
+	{PT_LOPROC,	"PT_LOPROC",	"CPU specific (lo mark)"},
+	{PT_HIPROC,	"PT_HIPROC",	"CPU system-specific (hi mark)"},
+};
+
 Elf			*elf = NULL;
 FILE			*f;
 ud_t			 ud;
@@ -112,6 +131,30 @@ err:
 }
 
 /*
+ * make a RWX string for program header flags
+ * ret is a preallocated string of atleast 4 in length
+ */
+#define DM_APPEND_FLAG(x)	*p = (x); p++;
+int
+dm_make_pht_flag_str(int flags, char *ret)
+{
+	char			*p = ret;
+
+	memset(ret, 0, 4);
+
+	if (flags & PF_R)
+		DM_APPEND_FLAG('R');
+
+	if (flags & PF_W)
+		DM_APPEND_FLAG('W');
+
+	if (flags & PF_X)
+		DM_APPEND_FLAG('X');
+
+	return (DM_OK);
+}
+
+/*
  * show the program header table
  */
 int
@@ -120,6 +163,7 @@ dm_cmd_pht(char **args)
 	int			 ret = DM_FAIL;
 	GElf_Phdr		 phdr;
 	size_t			 num_phdrs, i;
+	char			 flags[4];
 
 	if (elf == NULL)
 		goto clean;
@@ -130,20 +174,30 @@ dm_cmd_pht(char **args)
 	}
 
 	/* Get program header table */
-	printf("Found %lu program header records:\n", num_phdrs);
+	printf("\nFound %lu program header records:\n", num_phdrs);
+	printf("%s\n", DM_RULE);
+	printf("%-10s | %-10s | %-5s | %-10s | %-20s\n",
+	    "Offset", "Virtual", "Flags", "Type", "Description");
+	printf("%s\n", DM_RULE);
 
 	for (i = 0; i < num_phdrs; i++) {
+
 		if (gelf_getphdr(elf, i, &phdr) != &phdr) {
 			fprintf(stderr, "elf_getphdr: %s", elf_errmsg(-1));
 			goto clean;
 		}
 
-		printf("0x%08llx: %d", (long long) phdr.p_offset, phdr.p_type);
-		if (phdr.p_flags & PF_X)
-			printf(" Executable");
+		dm_make_pht_flag_str(phdr.p_flags, flags);
+
+		printf("0x%08llx | 0x%08llx | %-5s | %-10s | %-20s",
+		    (long long) phdr.p_offset, phdr.p_vaddr, flags,
+		    pht_types[phdr.p_type].type_str,
+		    pht_types[phdr.p_type].descr);
+
 		printf("\n");
 	}
 	ret = DM_OK;
+	printf("%s\n", DM_RULE);
 clean:
 	printf("\n");
 	return (ret);
@@ -243,8 +297,10 @@ dm_cmd_dis(char **args)
 	int			ops = strtoll(args[0], NULL, 0), i;
 	long long		addr = cur_addr;
 
+	printf("\n");
 	for (i = 0; i < ops; i++)
 		addr = dm_disasm_op(addr);
+	printf("\n");
 
 	dm_seek(cur_addr); /* rewind back */
 	return (0);
