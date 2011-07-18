@@ -171,7 +171,8 @@ dm_cmd_sht(char **args)
 	}
 
 	printf("\nFound %lu section header records:\n", shdrs_idx);
-	printf("%-12s | %-12s\n", "offset", "name");
+	printf("%s\n", DM_RULE);
+	printf("%-20s | %-10s | %-10s\n", "Name", "Offset", "Virtual");
 	printf("%s\n", DM_RULE);
 
 	sec = NULL ;
@@ -186,9 +187,10 @@ dm_cmd_sht(char **args)
 			goto clean;
 		}
 
-		printf("0x%08llx    %-12s\n",
-		    (long long) shdr.sh_offset, sec_name);
+		printf("%-20s | 0x%08llx | 0x%08llx\n", sec_name,
+		    (long long) shdr.sh_offset, (long long) shdr.sh_addr);
 	}
+	printf("%s\n", DM_RULE);
 
 	ret = DM_OK;
 clean:
