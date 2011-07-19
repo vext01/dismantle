@@ -27,6 +27,14 @@
 #define DM_OK		0
 #define DM_FAIL		-1
 
+/* native address size */
+#if defined(_M_X64) || defined(__amd64__)
+#define NADDR		Elf64_Addr
+#else
+#define NADDR		Elf32_Addr
+#endif
+#define NADDR_FMT	"0x%08lx"
+
 #define DM_RULE \
 "----------------------------------------------------------------------------"
 
@@ -49,6 +57,7 @@ struct dm_pht_type {
 	{PT_HIPROC,	"PT_HIPROC",	"CPU system-specific (hi mark)"},
 	{-1,		NULL,		NULL},
 };
+struct dm_pht_type	unknown_pht_type = {-1, "???", "Failed to parse PHT record"};
 
 struct dm_help_rec {
 	char		*cmd;
@@ -66,23 +75,40 @@ struct dm_help_rec {
 Elf			*elf = NULL;
 FILE			*f;
 ud_t			 ud;
-long long		 cur_addr;
+NADDR		 cur_addr;
 
 #define DM_MAX_PROMPT			32
 char			prompt[DM_MAX_PROMPT];
+
+struct dm_pht_type *
+dm_get_pht_info(int find)
+{
+	struct dm_pht_type		*t = pht_types;
+
+	while (t->type_int != -1) {
+		if (t->type_int == find)
+			break;
+		t++;
+	}
+
+	if (t->type_int == -1)
+		return (NULL);
+
+	return (t);
+}
 
 /*
  * disassemble a single operation
  */
 int
-dm_disasm_op(long long addr)
+dm_disasm_op(NADDR addr)
 {
 	unsigned int		 read;
 	char			*hex;
 
 	read = ud_disassemble(&ud);
 	hex = ud_insn_hex(&ud);
-	printf("    0x%08llx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
+	printf("    0x%08lx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
 	return (addr + read);
 }
@@ -90,14 +116,14 @@ dm_disasm_op(long long addr)
 /*
  * get the offset of a section name
  */
-long long
+NADDR
 dm_find_section(char *find_sec)
 {
 	Elf_Scn			*sec;
 	size_t			 shdrs_idx;
 	GElf_Shdr		 shdr;
 	char			*sec_name;
-	long long		 ret = -1;
+	NADDR		 ret = -1;
 
 	if (elf == NULL)
 		goto clean;
@@ -194,6 +220,7 @@ dm_cmd_pht(char **args)
 	GElf_Phdr		 phdr;
 	size_t			 num_phdrs, i;
 	char			 flags[4];
+	struct dm_pht_type	*pht_t;
 
 	if (elf == NULL)
 		goto clean;
@@ -218,11 +245,17 @@ dm_cmd_pht(char **args)
 		}
 
 		dm_make_pht_flag_str(phdr.p_flags, flags);
+		pht_t = dm_get_pht_info(phdr.p_type);
 
-		printf("0x%08llx | 0x%08llx | %-5s | %-10s | %-20s",
-		    (long long) phdr.p_offset, phdr.p_vaddr, flags,
-		    pht_types[phdr.p_type].type_str,
-		    pht_types[phdr.p_type].descr);
+		if (!pht_t) {
+			fprintf(stderr,
+			    "WARN: Unknown phdr.p_type: %d\n", phdr.p_type);
+			pht_t = &unknown_pht_type;
+		}
+
+		printf(NADDR_FMT " | " NADDR_FMT " | %-5s | %-10s | %-20s",
+		    (NADDR) phdr.p_offset, phdr.p_vaddr, flags,
+		    pht_t->type_str, pht_t->descr);
 
 		printf("\n");
 	}
@@ -271,8 +304,8 @@ dm_cmd_sht(char **args)
 			goto clean;
 		}
 
-		printf("%-20s | 0x%08llx | 0x%08llx\n", sec_name,
-		    (long long) shdr.sh_offset, (long long) shdr.sh_addr);
+		printf("%-20s | " NADDR_FMT " | " NADDR_FMT "\n",
+		    sec_name, shdr.sh_offset, (NADDR) shdr.sh_addr);
 	}
 	printf("%s\n", DM_RULE);
 
@@ -283,7 +316,7 @@ clean:
 }
 
 int
-dm_seek(long long addr)
+dm_seek(NADDR addr)
 {
 	cur_addr = addr;
 
@@ -300,7 +333,7 @@ dm_seek(long long addr)
 int
 dm_cmd_seek(char **args)
 {
-	long long			to;
+	NADDR			to;
 
 	/* seeking to a section? */
 	if (args[0][0] == '.')
@@ -317,7 +350,7 @@ int
 dm_cmd_dis(char **args)
 {
 	int			ops = strtoll(args[0], NULL, 0), i;
-	long long		addr = cur_addr;
+	NADDR		addr = cur_addr;
 
 	printf("\n");
 	for (i = 0; i < ops; i++)
@@ -399,7 +432,7 @@ dm_parse_cmd(char *line)
 void
 dm_update_prompt()
 {
-	snprintf(prompt, DM_MAX_PROMPT, "[0x%08llx] ", cur_addr);
+	snprintf(prompt, DM_MAX_PROMPT, NADDR_FMT " dm> ", cur_addr);
 }
 
 void
