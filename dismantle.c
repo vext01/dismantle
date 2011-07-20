@@ -69,8 +69,9 @@ struct dm_help_rec {
 	char		*cmd;
 	char		*descr;
 } help_recs[] = {
-{"seek/s addr",		"Seek to an address"},
+	{"seek/s addr",		"Seek to an address"},
 	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"hex/px [len]",	"Dump hex (64 or 'len' bytes)"},
 	{"pht",			"Show program header table"},
 	{"sht",			"Show section header table"},
 	{"help/?",		"Show this help"},
@@ -85,6 +86,81 @@ NADDR		 cur_addr;
 
 #define DM_MAX_PROMPT			32
 char			prompt[DM_MAX_PROMPT];
+
+#define DM_HEX_CHUNK		16
+
+/*
+ * pretty print bytes from a buffer (as hex)
+ */
+int
+dm_dump_hex_pretty(uint8_t *buf, size_t sz, NADDR start_addr)
+{
+	size_t			done = 0;
+
+	if (sz > 16)
+		return (DM_FAIL);
+
+	printf("  " NADDR_FMT ":  ", start_addr);
+
+	/* first hex view */
+	for (done = 0; done < 16; done++) {
+		if (done < sz)
+			printf("%02x ", buf[done]);
+		else
+			printf("   ");
+	}
+	printf("    ");
+
+	/* now ASCII view */
+	for (done = 0; done < sz; done++) {
+		if ((buf[done] > 0x20) && (buf[done] < 0x7e))
+			printf("%c", buf[done]);
+		else
+			printf(".");
+	}
+	printf("\n");
+
+	return (DM_OK);
+}
+
+/*
+ * reads a number of bytes from a file and pretty prints them
+ * in lines of 16 bytes
+ */
+int
+dm_dump_hex(size_t bytes)
+{
+	size_t			orig_pos = ftell(f);
+	size_t			done = 0, read = 0, to_read = DM_HEX_CHUNK;
+	uint8_t			buf[DM_HEX_CHUNK];
+
+	printf("\n");
+	for (done = 0; done < bytes; done += read) {
+
+		if (DM_HEX_CHUNK > bytes - done)
+			to_read = bytes - done;
+
+		read = fread(buf, 1, to_read, f);
+
+		if ((!read) && (ferror(f))) {
+			perror("failed to read bytes");
+			clearerr(f);
+			return (DM_FAIL);
+		}
+		dm_dump_hex_pretty(buf, read, orig_pos + done);
+
+		if ((!read) && (feof(f)))
+			break;
+	}
+	printf("\n");
+
+	if (fseek(f, orig_pos, SEEK_SET) < 0) {
+		perror("could not seek file");
+		return (DM_FAIL);
+	}
+
+	return (DM_OK);
+}
 
 struct dm_pht_type *
 dm_get_pht_info(int find)
@@ -114,7 +190,7 @@ dm_disasm_op(NADDR addr)
 
 	read = ud_disassemble(&ud);
 	hex = ud_insn_hex(&ud);
-	printf("    " NADDR_FMT ":  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
+	printf("  " NADDR_FMT ":  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
 	return (addr + read);
 }
@@ -356,7 +432,7 @@ dm_cmd_seek(char **args)
 int
 dm_cmd_dis(char **args)
 {
-	int			ops = strtoll(args[0], NULL, 0), i;
+	int		ops = strtoll(args[0], NULL, 0), i;
 	NADDR		addr = cur_addr;
 
 	printf("\n");
@@ -392,18 +468,32 @@ dm_cmd_help()
 	return (DM_OK);
 }
 
+int
+dm_cmd_hex(char **args)
+{
+	dm_dump_hex(strtoll(args[0], NULL, 0));
+	return (DM_OK);
+}
+
+int
+dm_cmd_hex_noargs(char **args)
+{
+	dm_dump_hex(64);
+	return (DM_OK);
+}
+
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
 	int			(*handler)(char **args);
-};
-
-struct dm_cmd_sw dm_cmds[] = {
+} dm_cmds[] = {
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"pht", 0, dm_cmd_pht},
 	{"sht", 0, dm_cmd_sht},
+	{"hex", 1, dm_cmd_hex},		{"px", 1, dm_cmd_hex},
+	{"hex", 0, dm_cmd_hex_noargs},	{"px", 0, dm_cmd_hex_noargs},
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
 	{NULL, 0, NULL}
 };
