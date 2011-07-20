@@ -61,6 +61,16 @@ struct dm_pht_type {
 	{PT_HIOS,	"PT_HIOS",	"System specific (hi mark)"},
 	{PT_LOPROC,	"PT_LOPROC",	"CPU specific (lo mark)"},
 	{PT_HIPROC,	"PT_HIPROC",	"CPU system-specific (hi mark)"},
+	/* Ed R, where are these defined? */
+#if 0
+        {PT_GNU_EH_FRAME,       "PT_GNU_EH_FRAME",      "GNU extension"},
+        {PT_GNU_STACK,          "PT_GNU_STACK",         "GNU extension"},
+        {PT_GNU_RELRO,          "PT_GNU_RELRO",         "GNU extension"},
+        {PT_LOSUNW,             "PT_LOSUNW",            "Sun extension"},
+        {PT_SUNWBSS,            "PT_SUNWBSS",           "Sun extension"},
+        {PT_SUNWSTACK,          "PT_SUNWSTACK",         "Sun extension"},
+        {PT_HISUNW,             "PT_HISUNW",            "Sun extension"},
+#endif
 	{-1,		NULL,		NULL},
 };
 struct dm_pht_type	unknown_pht_type = {-1, "???", "Failed to parse PHT record"};
