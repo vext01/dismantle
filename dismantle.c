@@ -179,7 +179,7 @@ dm_get_pht_info(int find)
 {
 	struct dm_pht_type		*t = pht_types;
 
-	while (t->type_int != -1) {
+	while (t->type_int != 0) {
 		if (t->type_int == find)
 			break;
 		t++;
@@ -200,7 +200,12 @@ dm_disasm_op(NADDR addr)
 	unsigned int		 read;
 	char			*hex;
 
-	read = ud_disassemble(&ud);
+	if ((read = ud_disassemble(&ud)) == 0) {
+		fprintf(stderr,
+		    "failed to disassemble at " NADDR_FMT "\n", addr);
+		return (0);
+	}
+
 	hex = ud_insn_hex(&ud);
 	printf("  " NADDR_FMT ":  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
@@ -449,8 +454,11 @@ dm_cmd_dis(char **args)
 	NADDR		addr = cur_addr;
 
 	printf("\n");
-	for (i = 0; i < ops; i++)
+	for (i = 0; i < ops; i++) {
 		addr = dm_disasm_op(addr);
+		if (addr == 0)
+			break;
+	}
 	printf("\n");
 
 	dm_seek(cur_addr); /* rewind back */
