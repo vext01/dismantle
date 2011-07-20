@@ -61,8 +61,8 @@ struct dm_pht_type {
 	{PT_HIOS,	"PT_HIOS",	"System specific (hi mark)"},
 	{PT_LOPROC,	"PT_LOPROC",	"CPU specific (lo mark)"},
 	{PT_HIPROC,	"PT_HIPROC",	"CPU system-specific (hi mark)"},
-	/* Ed R, where are these defined? */
-#if 0
+	/* XXX define thses for !glibc systems */
+#ifdef __Linux__
         {PT_GNU_EH_FRAME,       "PT_GNU_EH_FRAME",      "GNU extension"},
         {PT_GNU_STACK,          "PT_GNU_STACK",         "GNU extension"},
         {PT_GNU_RELRO,          "PT_GNU_RELRO",         "GNU extension"},
@@ -73,7 +73,7 @@ struct dm_pht_type {
 #endif
 	{-1,		NULL,		NULL},
 };
-struct dm_pht_type	unknown_pht_type = {-1, "???", "Failed to parse PHT record"};
+struct dm_pht_type	unknown_pht_type = {-1, "???", "Unknown PHT type"};
 
 struct dm_help_rec {
 	char		*cmd;
@@ -341,11 +341,8 @@ dm_cmd_pht(char **args)
 		dm_make_pht_flag_str(phdr.p_flags, flags);
 		pht_t = dm_get_pht_info(phdr.p_type);
 
-		if (!pht_t) {
-			fprintf(stderr,
-			    "WARN: Unknown phdr.p_type: %d\n", phdr.p_type);
+		if (!pht_t)
 			pht_t = &unknown_pht_type;
-		}
 
 		/* offset is ElfAddr_64 bit on every arch for some reason */
 		printf(ADDR_FMT_64 " | " ADDR_FMT_64 " | %-5s | %-10s | %-20s",
