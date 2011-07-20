@@ -314,6 +314,8 @@ dm_cmd_pht(char **args)
 	char			 flags[4];
 	struct dm_pht_type	*pht_t;
 
+	(void) args;
+
 	if (elf == NULL)
 		goto clean;
 
@@ -370,6 +372,8 @@ dm_cmd_sht(char **args)
 	GElf_Shdr		 shdr;
 	char			*sec_name;
 	int			 ret = DM_FAIL;
+
+	(void) args;
 
 	if (elf == NULL)
 		goto clean;
@@ -459,6 +463,8 @@ dm_cmd_dis_noargs(char **args)
 {
 	char			*arg ="8";
 
+	(void) args;
+
 	dm_cmd_dis(&arg);
 	return (0);
 }
@@ -488,6 +494,7 @@ dm_cmd_hex(char **args)
 int
 dm_cmd_hex_noargs(char **args)
 {
+	(void) args;
 	dm_dump_hex(64);
 	return (DM_OK);
 }
