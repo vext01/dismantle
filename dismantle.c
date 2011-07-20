@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <udis86.h>
 #include <libelf/gelf.h>
@@ -91,6 +92,7 @@ struct dm_help_rec {
 
 Elf			*elf = NULL;
 FILE			*f;
+struct stat		 bin_stat;
 ud_t			 ud;
 NADDR		 cur_addr;
 
@@ -496,6 +498,59 @@ dm_cmd_hex_noargs(char **args)
 	return (DM_OK);
 }
 
+int
+dm_cmd_findstr(char **args)
+{
+	NADDR			 byte = 0;
+	char			*find = args[0], *cmp = NULL;
+	size_t			 find_len = strlen(find);
+	size_t			 orig_pos = ftell(f), read;
+	int			 ret = DM_FAIL;
+	int			 hit = 0;
+
+	if (bin_stat.st_size < find_len) {
+		fprintf(stderr, "file not big enough for that string\n");
+		goto clean;
+	}
+
+	rewind(f);
+
+	cmp = malloc(find_len);
+	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
+
+#if 0
+		printf("\r" NADDR_FMT "/" NADDR_FMT " (% 3d%%)", byte,
+		    (NADDR) (bin_stat.st_size - find_len),
+		    (byte / (float) (bin_stat.st_size - find_len) * 100));
+#endif
+
+		if (fseek(f, byte, SEEK_SET))
+			perror("fseek");
+
+		read = fread(cmp, 1, find_len, f);
+		if (!read) {
+			if (feof(f))
+				break;
+			perror("could not read file");
+			goto clean;
+		}
+
+		if (memcmp(cmp, find, find_len) == 0)
+			printf("  HIT %03d: " NADDR_FMT "\n", hit++, byte);
+	}
+
+	ret = DM_OK;
+clean:
+	if (cmp)
+		free(cmp);
+
+	if (fseek(f, orig_pos, SEEK_SET))
+		perror("fseek");
+
+	printf("\n");
+	return (DM_OK);
+}
+
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
@@ -507,6 +562,7 @@ struct dm_cmd_sw {
 	{"pht", 0, dm_cmd_pht},
 	{"sht", 0, dm_cmd_sht},
 	{"hex", 1, dm_cmd_hex},		{"px", 1, dm_cmd_hex},
+	{"findstr", 1, dm_cmd_findstr},	{"/", 1, dm_cmd_findstr},
 	{"hex", 0, dm_cmd_hex_noargs},	{"px", 0, dm_cmd_hex_noargs},
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
 	{NULL, 0, NULL}
@@ -571,6 +627,11 @@ main(int argc, char **argv)
 
 	if ((f = fopen(argv[1], "r")) == NULL) {
 		perror("open");
+		exit(1);
+	}
+
+	if (fstat(fileno(f), &bin_stat) < 0) {
+		perror("fstat");
 		exit(1);
 	}
 
