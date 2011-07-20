@@ -27,13 +27,19 @@
 #define DM_OK		0
 #define DM_FAIL		-1
 
+
 /* native address size */
 #if defined(_M_X64) || defined(__amd64__)
 #define NADDR		Elf64_Addr
+#define ADDR_FMT_64	"0x%08lx"
+#define ADDR_FMT_32	"0x%08x"
+#define NADDR_FMT	ADDR_FMT_64
 #else
 #define NADDR		Elf32_Addr
+#define ADDR_FMT_64	"0x%08llx"
+#define ADDR_FMT_32	"0x%08x"
+#define NADDR_FMT	ADDR_FMT_32
 #endif
-#define NADDR_FMT	"0x%08lx"
 
 #define DM_RULE \
 "----------------------------------------------------------------------------"
@@ -108,7 +114,7 @@ dm_disasm_op(NADDR addr)
 
 	read = ud_disassemble(&ud);
 	hex = ud_insn_hex(&ud);
-	printf("    0x%08lx:  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
+	printf("    " NADDR_FMT ":  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
 
 	return (addr + read);
 }
@@ -253,8 +259,9 @@ dm_cmd_pht(char **args)
 			pht_t = &unknown_pht_type;
 		}
 
-		printf(NADDR_FMT " | " NADDR_FMT " | %-5s | %-10s | %-20s",
-		    (NADDR) phdr.p_offset, phdr.p_vaddr, flags,
+		/* offset is ElfAddr_64 bit on every arch for some reason */
+		printf(ADDR_FMT_64 " | " ADDR_FMT_64 " | %-5s | %-10s | %-20s",
+		    phdr.p_offset, phdr.p_vaddr, flags,
 		    pht_t->type_str, pht_t->descr);
 
 		printf("\n");
@@ -304,7 +311,7 @@ dm_cmd_sht(char **args)
 			goto clean;
 		}
 
-		printf("%-20s | " NADDR_FMT " | " NADDR_FMT "\n",
+		printf("%-20s | " ADDR_FMT_64 " | " NADDR_FMT "\n",
 		    sec_name, shdr.sh_offset, (NADDR) shdr.sh_addr);
 	}
 	printf("%s\n", DM_RULE);
