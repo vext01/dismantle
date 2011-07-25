@@ -179,7 +179,7 @@ dm_get_pht_info(int find)
 {
 	struct dm_pht_type		*t = pht_types;
 
-	while (t->type_int != 0) {
+	while (t->type_int != -1) {
 		if (t->type_int == find)
 			break;
 		t++;
