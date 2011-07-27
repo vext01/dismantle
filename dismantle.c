@@ -85,6 +85,7 @@ struct dm_help_rec {
 	{"hex/px [len]",	"Dump hex (64 or 'len' bytes)"},
 	{"pht",			"Show program header table"},
 	{"sht",			"Show section header table"},
+	{"/ str",		"Find ASCII string from current pos"},
 	{"help/?",		"Show this help"},
 	{"CTRL+D",		"Exit"},
 	{NULL, 0},
