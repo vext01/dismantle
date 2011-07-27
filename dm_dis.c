@@ -43,7 +43,6 @@ dm_disasm_op(NADDR addr)
 	unsigned int		 read;
 	char			*hex;
 
-	read = ud_disassemble(&ud);
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
 			"failed to disassemble at " NADDR_FMT "\n", addr);
