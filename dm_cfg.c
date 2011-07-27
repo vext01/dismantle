@@ -16,6 +16,8 @@ void dm_ssa_index_init(struct dm_ssa_index **indices) {
  * There is no way to get the maximum size of an enum and udis86 keeps
  * reordering them. We really need a linked list here, but for now we
  * over-approximate the size of the enum. Yuck.
+ *
+ * Add a statically allocated array and and provide a search func.
  */
 #define UD_OP_ENUM_SZ			600
 void dm_instruction_se_init(struct dm_instruction_se **instructions) {
@@ -60,16 +62,16 @@ void dm_instruction_se_init(struct dm_instruction_se **instructions) {
 }
 
 int dm_cmd_ssa(char **args) {
-	struct 		dm_ssa_index  *indices = NULL;
+	struct		dm_ssa_index  *indices = NULL;
 	struct		dm_instruction_se *instructions = NULL;
 	unsigned int	read;
 	char		*hex;
 	int		ops = strtoll(args[0], NULL, 0), i;
 	NADDR		addr = cur_addr;
-	
+
 	dm_ssa_index_init(&indices);
 	dm_instruction_se_init(&instructions);
-	
+
 	printf("\n");
 	for (i = 0; i < ops; i++) {
 		read = ud_disassemble(&ud);
@@ -81,20 +83,20 @@ int dm_cmd_ssa(char **args) {
 		/*sprintf(out, "%s", ud_insn_asm(&ud));
 		if ((srch = strchr(out, ',')) != NULL)
 		printf(*/
-			
+
 		printf("%d, ", indices[ud.operand[0].base].index);
 		printf("%d, ", indices[ud.operand[1].base].index);
 		//	if (ud.operand[2] != NULL)
 		printf("%d\n", indices[ud.operand[2].base].index);
 		//}
-		
-		
 	}
 	
 	dm_seek(cur_addr); /* rewind back */
 	printf("\n");
 	return (0);
 }
+
+/* XXX free cfg tree */
 
 struct dm_cfg_node *cfg = NULL;
 
@@ -112,16 +114,20 @@ struct dm_cfg_node*  dm_find_cfg_node_starting(struct dm_cfg_node *node, NADDR a
 
 void dm_print_cfg(struct dm_cfg_node *node) {
 	int i = 0;
-	printf("Block start: %x, end: %x", (unsigned int)node->start, (unsigned int)node->end);
-	
+	printf("Block start: %x, end: %x",
+	    (unsigned int)node->start, (unsigned int)node->end);
+
 	for (;node->children[i] != NULL; i++)
-		printf(". Child %d start: %x, end: %x", i, (unsigned int)node->children[i]->start, (unsigned int)node->children[i]->end);
+		printf(". Child %d start: %x, end: %x", i,
+		    (unsigned int)node->children[i]->start,
+		    (unsigned int)node->children[i]->end);
 	printf("\n");
 	for (i = 0; node->children[i] != NULL; i++)
 		dm_print_cfg(node->children[i]);
 }
 
-struct dm_cfg_node* dm_new_cfg_node(NADDR nstart, NADDR nend, struct dm_cfg_node *parent) {
+struct dm_cfg_node* dm_new_cfg_node(NADDR nstart, NADDR nend,
+    struct dm_cfg_node *parent) {
 	struct dm_cfg_node* node;
 	node = malloc(sizeof(struct dm_cfg_node));
 	node->start = nstart;
@@ -131,7 +137,8 @@ struct dm_cfg_node* dm_new_cfg_node(NADDR nstart, NADDR nend, struct dm_cfg_node
 	return node;
 }
 
-struct dm_cfg_node* dm_find_cfg_node_containing(struct dm_cfg_node *node, NADDR addr) {
+struct dm_cfg_node* dm_find_cfg_node_containing(struct dm_cfg_node *node,
+    NADDR addr) {
 	int i = 0;
 	struct dm_cfg_node* newNode;
 	NADDR addr2 = 0;
