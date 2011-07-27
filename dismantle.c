@@ -516,7 +516,7 @@ dm_cmd_findstr(char **args)
 	int			 ret = DM_FAIL;
 	int			 hit = 0;
 
-	if (bin_stat.st_size < find_len) {
+	if (bin_stat.st_size < (off_t) find_len) {
 		fprintf(stderr, "file not big enough for that string\n");
 		goto clean;
 	}

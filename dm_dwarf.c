@@ -38,7 +38,9 @@
 #include <errno.h>
 
 #include <libdwarf.h>
-#include <libdwarf.h>
+#include <dwarf.h>
+
+#include "dm_dwarf.h"
 
 extern FILE			*f;
 
@@ -168,7 +170,7 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 		exit(1);
 	}
 
-	if(res == DW_DLV_NO_ENTRY)
+	if (res == DW_DLV_NO_ENTRY)
 		return 0;
 
 	res = dwarf_tag(print_me, &tag, &error);
