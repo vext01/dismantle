@@ -110,19 +110,23 @@ struct dm_cfg_node*  dm_find_cfg_node_starting(struct dm_cfg_node *node, NADDR a
 		for (; node->children[i] != NULL; i++)
 			if ((retNode = dm_find_cfg_node_starting(node->children[i], addr)) != NULL)
 				return retNode;
-	return NULL; 
+	return NULL;
 }
 
-void dm_print_cfg(struct dm_cfg_node *node) {
-	int i = 0;
-	printf("Block start: " NADDR_FMT ", end: " NADDR_FMT,
+void
+dm_print_cfg(struct dm_cfg_node *node) {
+	int			i = 0;
+
+	printf("  Block start: " NADDR_FMT ", end: " NADDR_FMT "\n",
 	    (unsigned int) node->start, (unsigned int) node->end);
 
-	for (;node->children[i] != NULL; i++)
-		printf("Child %d start: " NADDR_FMT "x, end: " NADDR_FMT, i,
-		    (unsigned int)node->children[i]->start,
-		    (unsigned int)node->children[i]->end);
-	printf("\n");
+	for (; node->children[i] != NULL; i++) {
+		printf("      Child %d start: " NADDR_FMT
+		    "x, end: " NADDR_FMT "\n", i,
+		    (unsigned int) node->children[i]->start,
+		    (unsigned int) node->children[i]->end);
+	}
+
 	for (i = 0; node->children[i] != NULL; i++)
 		dm_print_cfg(node->children[i]);
 }
