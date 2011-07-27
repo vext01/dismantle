@@ -48,7 +48,6 @@ int
 dm_dwarf_funcs()
 {
 	Dwarf_Debug			dbg = 0;
-	int				fd = -1, res = DW_DLV_ERROR;
 	Dwarf_Error			error;
 	Dwarf_Handler			errhand = 0;
 	Dwarf_Ptr			errarg = 0;

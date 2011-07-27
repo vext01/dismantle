@@ -76,7 +76,8 @@ int dm_cmd_ssa(char **args) {
 	for (i = 0; i < ops; i++) {
 		read = ud_disassemble(&ud);
 		hex = ud_insn_hex(&ud);
-		printf("    0x%08lx:  %-20s%s  ", addr, hex, ud_insn_asm(&ud));
+		printf("    " NADDR_FMT ":  %-20s%s  ",
+		    addr, hex, ud_insn_asm(&ud));
 		addr = addr + read;
 		if (instructions[ud.mnemonic].write)
 			indices[ud.operand[0].base].index++;
@@ -114,11 +115,11 @@ struct dm_cfg_node*  dm_find_cfg_node_starting(struct dm_cfg_node *node, NADDR a
 
 void dm_print_cfg(struct dm_cfg_node *node) {
 	int i = 0;
-	printf("Block start: %x, end: %x",
-	    (unsigned int)node->start, (unsigned int)node->end);
+	printf("Block start: " NADDR_FMT ", end: " NADDR_FMT,
+	    (unsigned int) node->start, (unsigned int) node->end);
 
 	for (;node->children[i] != NULL; i++)
-		printf(". Child %d start: %x, end: %x", i,
+		printf("Child %d start: " NADDR_FMT "x, end: " NADDR_FMT, i,
 		    (unsigned int)node->children[i]->start,
 		    (unsigned int)node->children[i]->end);
 	printf("\n");
@@ -224,11 +225,14 @@ int
 dm_cmd_cfg(char **args) {
 	NADDR           	addr = cur_addr;
 	struct          	dm_instruction_se *instructions = NULL;	
+
+	(void) args;
 	
 	dm_instruction_se_init(&instructions);
 
 	cfg = dm_new_cfg_node(addr, 0, NULL);	
 	dm_gen_cfg_block(cfg, instructions);
+
 	dm_print_cfg(cfg);
 
 	dm_seek(cur_addr); /* rewind back */
