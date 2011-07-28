@@ -155,8 +155,8 @@ dm_cmd_pht(char **args)
 	size_t			 num_phdrs, i;
 	char			 flags[4];
 	struct dm_pht_type	*pht_t;
-	
-	(void) args;	
+
+	(void) args;
 
 	if (elf == NULL)
 		goto clean;
@@ -169,7 +169,7 @@ dm_cmd_pht(char **args)
 	/* Get program header table */
 	printf("\nFound %lu program header records:\n", num_phdrs);
 	printf("%s\n", DM_RULE);
-	printf("%-10s | %-10s | %-5s | %-20s | %-20s\n",
+	printf("%-10s | %-10s | %-5s | %-10s | %-20s\n",
 	    "Offset", "Virtual", "Flags", "Type", "Description");
 	printf("%s\n", DM_RULE);
 
