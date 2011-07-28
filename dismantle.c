@@ -14,18 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <stdio.h>
-
 #include <readline/readline.h>
 #include <readline/history.h>
-
 #include "common.h"
 #include "dm_dis.h"
 #include "dm_elf.h"
 #include "dm_cfg.h"
 
 FILE		*f;
-struct stat	bin_stat;
+struct stat 	bin_stat;
 
 
 int	dm_cmd_help();
@@ -306,8 +303,6 @@ main(int argc, char **argv)
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, f);
-
-	/* XXX decide cleverly */
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
