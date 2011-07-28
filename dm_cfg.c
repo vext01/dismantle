@@ -118,13 +118,12 @@ dm_print_cfg(struct dm_cfg_node *node) {
 	int			i = 0;
 
 	printf("  Block start: " NADDR_FMT ", end: " NADDR_FMT "\n",
-	    (unsigned int) node->start, (unsigned int) node->end);
+	    node->start, node->end);
 
 	for (; node->children[i] != NULL; i++) {
 		printf("      Child %d start: " NADDR_FMT
 		    "x, end: " NADDR_FMT "\n", i,
-		    (unsigned int) node->children[i]->start,
-		    (unsigned int) node->children[i]->end);
+		    node->children[i]->start, node->children[i]->end);
 	}
 
 	for (i = 0; node->children[i] != NULL; i++)
