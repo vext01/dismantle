@@ -26,13 +26,13 @@ struct dm_pht_type {
 	char		*descr;
 };
 
-struct pht_cache_entry {
-	TAILQ_ENTRY(pht_cache_entry)	entries;
-	struct dm_pht_type		*type;
-	NADDR				 start_offset;
-	NADDR				 end_offset;
-	NADDR				 start_vaddr;
-	NADDR				 end_vaddr;
+struct dm_pht_cache_entry {
+	SIMPLEQ_ENTRY(dm_pht_cache_entry)	 entries;
+	struct dm_pht_type			*type;
+	NADDR					 start_offset;
+	NADDR					 end_offset;
+	NADDR					 start_vaddr;
+	NADDR					 end_vaddr;
 };
 
 struct dm_pht_type	*dm_get_pht_info(int find);

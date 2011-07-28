@@ -1,7 +1,7 @@
 #include "dm_elf.h"
 
-Elf	*elf = NULL;
-TAILQ_HEAD(tailhead, entry) pht_cache;
+Elf						*elf = NULL;
+SIMPLEQ_HEAD(tailhead, dm_pht_cache_entry)	 pht_cache;
 
 struct dm_pht_type pht_types[] = {
 	{PT_NULL,		"PT_NULL",		"Unused"},
@@ -95,6 +95,8 @@ int
 dm_init_elf()
 {
 	Elf_Kind		 ek;
+
+	SIMPLEQ_INIT(&pht_cache);
 
 	if(elf_version(EV_CURRENT) == EV_NONE) {
 		fprintf(stderr, "elf_version: %s\n", elf_errmsg(-1));
@@ -251,3 +253,53 @@ clean:
 	printf("\n");
 	return (ret);
 }
+
+/*
+ * show the program header table
+ */
+int
+dm_parse_pht(char **args)
+{
+	int				ret = DM_FAIL;
+	GElf_Phdr			phdr;
+	size_t				num_phdrs, i;
+	struct dm_pht_type		*pht_t;
+	struct dm_pht_cache_entry	*rec;
+
+	(void) args;
+
+	if (elf == NULL)
+		goto clean;
+
+	if (elf_getphdrnum(elf, &num_phdrs) != 0) {
+		fprintf(stderr, "elf_getphdrnum: %s", elf_errmsg ( -1));
+		goto clean;
+	}
+
+	for (i = 0; i < num_phdrs; i++) {
+
+		if (gelf_getphdr(elf, i, &phdr) != &phdr) {
+			fprintf(stderr, "elf_getphdr: %s", elf_errmsg(-1));
+			goto clean;
+		}
+
+		pht_t = dm_get_pht_info(phdr.p_type);
+		if (!pht_t)
+			pht_t = &unknown_pht_type;
+
+		/* make linked list entry */
+		rec = malloc(sizeof(rec));
+		rec->start_offset = rec->end_offset = 0;
+		rec->start_vaddr = rec->end_vaddr = 0;
+
+		SIMPLEQ_INSERT_TAIL(&pht_cache, rec, entries);
+
+	}
+	ret = DM_OK;
+	printf("%s\n", DM_RULE);
+clean:
+	printf("\n");
+	return (ret);
+}
+
+
