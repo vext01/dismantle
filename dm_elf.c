@@ -1,6 +1,7 @@
 #include "dm_elf.h"
 
 Elf	*elf = NULL;
+TAILQ_HEAD(tailhead, entry) pht_cache;
 
 struct dm_pht_type pht_types[] = {
 	{PT_NULL,		"PT_NULL",		"Unused"},

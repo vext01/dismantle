@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "dm_cfg.h"
 
 void 
@@ -12,14 +14,16 @@ dm_ssa_index_init(struct dm_ssa_index **indices) {
 	}
 }
 
-void 
+/* nasty hack, overapproximates size of ud enum in itab.h, fix XXX */
+#define DM_UD_ENUM_HACK				600
+void
 dm_instruction_se_init(struct dm_instruction_se **instructions) {
 	int i;
 
-	*instructions = malloc(sizeof(struct dm_instruction_se) * (UD_Ixstore + 1));
+	*instructions = malloc(sizeof(struct dm_instruction_se) * (DM_UD_ENUM_HACK));
 	
 	/* Initialise struct recording which instructions write to registers */
-	for (i = 0; i < UD_Ixstore + 1; i++) {
+	for (i = 0; i < DM_UD_ENUM_HACK + 1; i++) {
 		(*instructions)[i].instruction = (enum ud_mnemonic_code)i;
 		(*instructions)[i].write = 1;
 		(*instructions)[i].jump = 0;

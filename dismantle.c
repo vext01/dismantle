@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdio.h>
+
 #include <readline/readline.h>
 #include <readline/history.h>
+
 #include "common.h"
 #include "dm_dis.h"
 #include "dm_elf.h"
