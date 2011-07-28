@@ -41,6 +41,7 @@
 #include <dwarf.h>
 
 #include "dm_dwarf.h"
+#include "common.h"
 
 extern FILE			*f;
 
@@ -65,7 +66,7 @@ dm_cmd_dwarf_funcs(char **args)
 	if (dwarf_finish(dbg,&error) != DW_DLV_OK)
 		fprintf(stderr, "dwarf_finish failed!\n");
 
-	return (0); /* XXX */
+	return (DM_OK);
 }
 
 void
@@ -171,7 +172,7 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 	}
 
 	if (res == DW_DLV_NO_ENTRY)
-		return 0;
+		return (DM_FAIL);
 
 	res = dwarf_tag(print_me, &tag, &error);
 	if (res != DW_DLV_OK) {
@@ -193,14 +194,15 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 	}
 
 	/* get the function name */
-	res = dwarf_get_TAG_name(tag,&tagname);
+	res = dwarf_get_TAG_name(tag, &tagname);
 	if (res != DW_DLV_OK) {
 		fprintf(stderr, "Failed to dwarf_get_TAG_name");
 		exit(1);
 	}
 
-	printf("<%d> tag: %d %s  name: %s  addr: %llu\n",
-	    level, tag, tagname, name, lo);
+	//printf("<%d> tag: %d %s  name: %s  addr: %llu\n",
+	 //   level, tag, tagname, name, lo);
+	printf("  " NADDR_FMT ": %s\n", (NADDR) lo, name);
 
 	dwarf_dealloc(dbg,name,DW_DLA_STRING);
 
