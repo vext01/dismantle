@@ -41,17 +41,19 @@
 #include <dwarf.h>
 
 #include "dm_dwarf.h"
+#include "common.h"
 
 extern FILE			*f;
 
 int
-dm_dwarf_funcs()
+dm_cmd_dwarf_funcs(char **args)
 {
 	Dwarf_Debug			dbg = 0;
-	int				fd = -1, res = DW_DLV_ERROR;
 	Dwarf_Error			error;
 	Dwarf_Handler			errhand = 0;
 	Dwarf_Ptr			errarg = 0;
+
+	(void) args;
 
 	if (dwarf_init(fileno(f), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
@@ -64,10 +66,10 @@ dm_dwarf_funcs()
 	if (dwarf_finish(dbg,&error) != DW_DLV_OK)
 		fprintf(stderr, "dwarf_finish failed!\n");
 
-	return (0); /* XXX */
+	return (DM_OK);
 }
 
-static void
+void
 read_cu_list(Dwarf_Debug dbg)
 {
 	Dwarf_Unsigned		cu_header_length = 0;
@@ -89,7 +91,6 @@ read_cu_list(Dwarf_Debug dbg)
 		    &version_stamp, &abbrev_offset, &address_size,
 		    &next_cu_header, &error);
 
-		printf("Offset: %llu\n", abbrev_offset);
 		if (res == DW_DLV_ERROR) {
 			printf("Error in dwarf_next_cu_header\n");
 			exit(1);
@@ -115,7 +116,7 @@ read_cu_list(Dwarf_Debug dbg)
 	}
 }
 
-static void
+void
 get_die_and_siblings(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 {
 	int			res = DW_DLV_ERROR;
@@ -155,7 +156,7 @@ get_die_and_siblings(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 	return;
 }
 
-static int
+int
 print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 {
 	char			*name = 0;
@@ -171,7 +172,7 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 	}
 
 	if (res == DW_DLV_NO_ENTRY)
-		return 0;
+		return (DM_FAIL);
 
 	res = dwarf_tag(print_me, &tag, &error);
 	if (res != DW_DLV_OK) {
@@ -193,14 +194,15 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 	}
 
 	/* get the function name */
-	res = dwarf_get_TAG_name(tag,&tagname);
+	res = dwarf_get_TAG_name(tag, &tagname);
 	if (res != DW_DLV_OK) {
 		fprintf(stderr, "Failed to dwarf_get_TAG_name");
 		exit(1);
 	}
 
-	printf("<%d> tag: %d %s  name: %s  addr: %llu\n",
-	    level, tag, tagname, name, lo);
+	//printf("<%d> tag: %d %s  name: %s  addr: %llu\n",
+	 //   level, tag, tagname, name, lo);
+	printf("  " NADDR_FMT ": %s\n", (NADDR) lo, name);
 
 	dwarf_dealloc(dbg,name,DW_DLA_STRING);
 

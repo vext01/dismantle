@@ -5,10 +5,13 @@ CFLAGS=		-g -Wall -Wextra
 all: dismantle
 
 dismantle: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle dismantle.c dm_dis.o dm_elf.o dm_cfg.o
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
+		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
 
 dismantle-static: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle dismantle.c dm_dis.o dm_elf.o dm_cfg.o /usr/local/lib/libudis86.a /usr/lib/libdwarf.a
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
+		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o \
+		/usr/local/lib/libudis86.a /usr/lib/libdwarf.a
 
 dm_dis.o: dm_dis.c dm_dis.h common.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dis.o dm_dis.c

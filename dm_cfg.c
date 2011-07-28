@@ -69,7 +69,8 @@ dm_cmd_ssa(char **args) {
 	for (i = 0; i < ops; i++) {
 		read = ud_disassemble(&ud);
 		hex = ud_insn_hex(&ud);
-		printf("    0x%08lx:  %-20s%s  ", addr, hex, ud_insn_asm(&ud));
+		printf("    " NADDR_FMT ":  %-20s%s  ",
+		    addr, hex, ud_insn_asm(&ud));
 		addr = addr + read;
 		if (instructions[ud.mnemonic].write)
 			indices[ud.operand[0].base].index++;
@@ -101,7 +102,7 @@ dm_find_cfg_node_starting(struct dm_cfg_node *node, NADDR addr) {
 		for (; node->children[i] != NULL; i++)
 			if ((retNode = dm_find_cfg_node_starting(node->children[i], addr)) != NULL)
 				return retNode;
-	return NULL; 
+	return NULL;
 }
 
 struct ptrs {
@@ -118,13 +119,12 @@ void dm_print_cfg() {
 	p = p_head;
 	while (p->ptr != NULL) {
 		node = (struct dm_cfg_node*)(p->ptr);
-		printf("Block start: %p, end: %p\n", 
-		    (void*)node->start, 
-		    (void*)node->end);
+		printf("Block start: " NADDR_FMT ", end: " NADDR_FMT "\n", 
+		    node->start, node->end);
 		for (i = 0; node->children[i] != NULL; i++)
-			printf("\tChild %d start: %p, end: %p\n", i, 
-			    (void*)node->children[i]->start, 
-			    (void*)node->children[i]->end);
+			printf("\tChild %d start: " NADDR_FMT ", end: " NADDR_FMT "\n", i, 
+			    node->children[i]->start, 
+			    node->children[i]->end);
 		p = p->next;
 	}
 }
@@ -244,6 +244,8 @@ int
 dm_cmd_cfg(char **args) {
 	NADDR           	addr = cur_addr;
 	struct          	dm_instruction_se *instructions = NULL;	
+
+	(void) args;
 	
 	(void) args;
 
@@ -254,6 +256,7 @@ dm_cmd_cfg(char **args) {
 		
 	cfg = dm_new_cfg_node(addr, 0);	
 	dm_gen_cfg_block(cfg, instructions);
+
 	dm_print_cfg(cfg);
 	
 	dm_cfg_free();

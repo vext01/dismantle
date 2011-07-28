@@ -20,6 +20,7 @@
 #include "dm_dis.h"
 #include "dm_elf.h"
 #include "dm_cfg.h"
+#include "dm_dwarf.h"
 
 FILE		*f;
 struct stat 	bin_stat;
@@ -44,6 +45,7 @@ struct dm_cmd_sw {
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
+	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
 	{"ssa", 1, dm_cmd_ssa},
 	{"cfg", 0, dm_cmd_cfg},
 	{"pht", 0, dm_cmd_pht},
@@ -61,6 +63,7 @@ struct dm_help_rec {
 } help_recs[] = {
 	{"seek/s addr",		"Seek to an address"},
 	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"funcs/f",		"Show functions from dwarf data"},
 	{"hex/px [len]",        "Dump hex (64 or 'len' bytes)"},
 	{"pht",			"Show program header table"},
 	{"sht",			"Show section header table"},
