@@ -233,7 +233,7 @@ clean:
 }
 
 /*
- * show the program header table
+ * parse and cache the PHT
  */
 int
 dm_parse_pht()
@@ -274,8 +274,8 @@ dm_parse_pht()
 		rec->flags = phdr.p_flags;
 		rec->start_offset = phdr.p_offset;
 		rec->start_vaddr = phdr.p_vaddr;
-		rec->end_offset = 0;		/* XXX */
-		rec->end_vaddr = 0;		/* XXX */
+		rec->memsz = phdr.p_memsz;
+		rec->filesz = phdr.p_filesz;
 
 		SIMPLEQ_INSERT_TAIL(&pht_cache, rec, entries);
 	}
@@ -301,3 +301,40 @@ dm_clean_elf()
 
 	return (DM_OK);
 }
+
+int
+dm_offset_from_vaddr(ADDR64 vaddr, ADDR64 *offset)
+{
+	struct dm_pht_cache_entry		*cent;
+	ADDR64					diff;
+
+	SIMPLEQ_FOREACH(cent, &pht_cache, entries) {
+		if ((vaddr < cent->start_vaddr) || (vaddr > cent->start_vaddr + cent->filesz)) {
+			//printf("skip %p %p\n", cent->start_vaddr, cent->start_vaddr + cent->filesz);
+			continue;
+		}
+
+		diff = vaddr - cent->start_vaddr;
+		*offset = cent->start_offset + diff;
+		break;
+	}
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_offset(char **args)
+{
+	ADDR64			off;
+	ADDR64			vaddr = strtoll(args[0], NULL, 0);
+
+	if (dm_offset_from_vaddr(vaddr, &off) != DM_OK) {
+		fprintf(stderr, "could not find offset from vaddr\n");
+		return (DM_FAIL);
+	}
+
+	printf("  offset_of(" ADDR_FMT_64 ") = " ADDR_FMT_64 "\n", vaddr, off);
+	return (DM_OK);
+}
+
+

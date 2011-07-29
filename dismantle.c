@@ -49,6 +49,7 @@ struct dm_cmd_sw {
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
+	{"offset", 1, dm_cmd_offset},
 	{"ssa", 1, dm_cmd_ssa},
 	{"cfg", 0, dm_cmd_cfg},
 	{"pht", 0, dm_cmd_pht},

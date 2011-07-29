@@ -28,13 +28,14 @@ struct dm_pht_type {
 	char		*descr;
 };
 
+/* XXX may aswell cache the entire Elf64_Phdr */
 struct dm_pht_cache_entry {
 	SIMPLEQ_ENTRY(dm_pht_cache_entry)	 entries;
 	struct dm_pht_type			*type;
 	ADDR64					 start_offset;
-	ADDR64					 end_offset;
 	ADDR64					 start_vaddr;
-	ADDR64					 end_vaddr;
+	ADDR64					 filesz;
+	ADDR64					 memsz;
 	int					 flags;
 };
 
@@ -46,5 +47,7 @@ int			dm_cmd_pht(char **args);
 int			dm_cmd_sht(char **args);
 int			dm_parse_pht();
 int			dm_clean_elf();
+int			dm_offset_from_vaddr(ADDR64 vaddr, ADDR64 *offset);
+int			dm_cmd_offset(char **args);
 
 #endif
