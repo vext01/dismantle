@@ -115,12 +115,10 @@ dm_init_elf()
 		goto err;
 	}
 
-	return (0);
+	return (DM_OK);
 err:
-	elf_end(elf);
 	elf = NULL;
-
-	return (-1);
+	return (DM_FAIL);
 }
 
 /*
@@ -153,54 +151,34 @@ dm_make_pht_flag_str(int flags, char *ret)
 int
 dm_cmd_pht(char **args)
 {
-	int			 ret = DM_FAIL;
-	GElf_Phdr		 phdr;
-	size_t			 num_phdrs, i;
-	char			 flags[4];
-	struct dm_pht_type	*pht_t;
+	int				ret = DM_FAIL;
+	char				flags[4];
+	struct dm_pht_cache_entry	*cent;
 
 	(void) args;
 
 	if (elf == NULL)
 		goto clean;
 
-	if (elf_getphdrnum(elf, &num_phdrs) != 0) {
-		fprintf(stderr, "elf_getphdrnum: %s", elf_errmsg ( -1));
-		goto clean;
-	}
-
 	/* Get program header table */
-	printf("\nFound %lu program header records:\n", num_phdrs);
 	printf("%s\n", DM_RULE);
 	printf("%-10s | %-10s | %-5s | %-10s | %-20s\n",
 	    "Offset", "Virtual", "Flags", "Type", "Description");
 	printf("%s\n", DM_RULE);
 
-	for (i = 0; i < num_phdrs; i++) {
+	SIMPLEQ_FOREACH(cent, &pht_cache, entries) {
 
-		if (gelf_getphdr(elf, i, &phdr) != &phdr) {
-			fprintf(stderr, "elf_getphdr: %s", elf_errmsg(-1));
-			goto clean;
-		}
-
-		dm_make_pht_flag_str(phdr.p_flags, flags);
-		pht_t = dm_get_pht_info(phdr.p_type);
-
-		if (!pht_t)
-			pht_t = &unknown_pht_type;
+		dm_make_pht_flag_str(cent->flags, flags);
 
 		/* offset is ElfAddr_64 bit on every arch for some reason */
-		printf(ADDR_FMT_64 " | " ADDR_FMT_64 " | %-5s | %-10s | %-20s",
-			phdr.p_offset, phdr.p_vaddr, flags,
-			pht_t->type_str, pht_t->descr);
+		printf(ADDR_FMT_64 " | " ADDR_FMT_64 " | %-5s | %-10s | %-20s\n",
+			cent->start_offset, cent->start_vaddr, flags,
+			cent->type->type_str, cent->type->descr);
 
-
-		printf("\n");
 	}
 	ret = DM_OK;
 	printf("%s\n", DM_RULE);
 clean:
-	printf("\n");
 	return (ret);
 }
 
@@ -258,7 +236,7 @@ clean:
  * show the program header table
  */
 int
-dm_parse_pht(char **args)
+dm_parse_pht()
 {
 	int				ret = DM_FAIL;
 	GElf_Phdr			phdr;
@@ -266,7 +244,7 @@ dm_parse_pht(char **args)
 	struct dm_pht_type		*pht_t;
 	struct dm_pht_cache_entry	*rec;
 
-	(void) args;
+	printf("%-40s", "Parsing program header table...");
 
 	if (elf == NULL)
 		goto clean;
@@ -288,18 +266,38 @@ dm_parse_pht(char **args)
 			pht_t = &unknown_pht_type;
 
 		/* make linked list entry */
-		rec = malloc(sizeof(rec));
-		rec->start_offset = rec->end_offset = 0;
-		rec->start_vaddr = rec->end_vaddr = 0;
+		rec = calloc(1, sizeof(struct dm_pht_cache_entry));
+		if (!rec)
+			fprintf(stderr, "malloc\n");
+
+		rec->type = pht_t;
+		rec->flags = phdr.p_flags;
+		rec->start_offset = phdr.p_offset;
+		rec->start_vaddr = phdr.p_vaddr;
+		rec->end_offset = 0;		/* XXX */
+		rec->end_vaddr = 0;		/* XXX */
 
 		SIMPLEQ_INSERT_TAIL(&pht_cache, rec, entries);
-
 	}
+
+	printf("[OK]\n");
 	ret = DM_OK;
-	printf("%s\n", DM_RULE);
 clean:
-	printf("\n");
 	return (ret);
 }
 
+int
+dm_clean_elf()
+{
+	struct dm_pht_cache_entry		*n;
 
+	while (!SIMPLEQ_EMPTY(&pht_cache)) {
+		n = SIMPLEQ_FIRST(&pht_cache);
+		SIMPLEQ_REMOVE_HEAD(&pht_cache, entries);
+		free(n);
+	}
+
+	elf_end(elf);
+
+	return (DM_OK);
+}

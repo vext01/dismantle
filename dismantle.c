@@ -305,7 +305,10 @@ main(int argc, char **argv)
 	}
 
 
+	/* parse elf junk */
 	dm_init_elf();
+	dm_parse_pht();
+	/* XXX sht cache */
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, f);
@@ -316,6 +319,9 @@ main(int argc, char **argv)
 	dm_seek(dm_find_section(".text"));
 
 	dm_interp();
+
+	/* clean up */
+	dm_clean_elf();
 
 	return (EXIT_SUCCESS);
 }
