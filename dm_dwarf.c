@@ -165,6 +165,8 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 	const char		*tagname = 0;
 	int			 res = dwarf_diename(print_me,&name,&error);
 	Dwarf_Addr		 lo;
+	ADDR64			 offset;
+	int			 offset_err = 0;
 
 	if (res == DW_DLV_ERROR) {
 		printf("Error in dwarf_diename , level %d \n",level);
@@ -200,9 +202,16 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 		exit(1);
 	}
 
-	//printf("<%d> tag: %d %s  name: %s  addr: %llu\n",
-	 //   level, tag, tagname, name, lo);
-	printf("  " NADDR_FMT ": %s\n", (NADDR) lo, name);
+	offset_err = 0;
+	if ((dm_offset_from_vaddr(lo, &offset)) != DM_OK)
+		offset_err = 1;
+
+	if (!offset_err)
+		printf("  Virtual: " ADDR_FMT_64
+		    "   Offset: " ADDR_FMT_64 ":   %s()\n", lo, offset, name);
+	else
+		printf("  Virtual: " ADDR_FMT_64
+		    "   Offset: %-10s:   %s()\n", lo, "???", name);
 
 	dwarf_dealloc(dbg,name,DW_DLA_STRING);
 

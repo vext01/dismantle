@@ -307,17 +307,22 @@ dm_offset_from_vaddr(ADDR64 vaddr, ADDR64 *offset)
 {
 	struct dm_pht_cache_entry		*cent;
 	ADDR64					diff;
+	int					found = 0;
 
 	SIMPLEQ_FOREACH(cent, &pht_cache, entries) {
-		if ((vaddr < cent->start_vaddr) || (vaddr > cent->start_vaddr + cent->filesz)) {
-			//printf("skip %p %p\n", cent->start_vaddr, cent->start_vaddr + cent->filesz);
+
+		if ((vaddr < cent->start_vaddr) ||
+		    (vaddr > cent->start_vaddr + cent->filesz))
 			continue;
-		}
 
 		diff = vaddr - cent->start_vaddr;
 		*offset = cent->start_offset + diff;
+		found = 1;
 		break;
 	}
+
+	if (!found)
+		return (DM_FAIL);
 
 	return (DM_OK);
 }
