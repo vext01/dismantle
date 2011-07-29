@@ -8,6 +8,7 @@ dismantle: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
 
+static: dismantle-static
 dismantle-static: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_dwarf.o \
