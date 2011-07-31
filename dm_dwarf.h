@@ -31,9 +31,9 @@ struct dm_dwarf_sym_cache_entry {
 };
 
 int		dm_cmd_dwarf_funcs();
-void		dm_dwarf_recurse_cu(Dwarf_Debug dbg);
-void		dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level);
-void		get_die_and_siblings(Dwarf_Debug dbg,
+int		dm_dwarf_recurse_cu(Dwarf_Debug dbg);
+int		dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level);
+int		get_die_and_siblings(Dwarf_Debug dbg,
 		    Dwarf_Die in_die,int in_level);
 int		dm_dwarf_sym_rb_cmp(struct dm_dwarf_sym_cache_entry *s1,
 		    struct dm_dwarf_sym_cache_entry *s2);
