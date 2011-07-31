@@ -283,6 +283,7 @@ dm_interp()
 			add_history(line);
 			dm_parse_cmd(line);
 		}
+		free(line); /* XXX not sure, roll with this for now */
 		dm_update_prompt();
 	}
 }
