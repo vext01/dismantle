@@ -26,7 +26,7 @@
 #include "dm_dwarf.h"
 
 FILE		*f;
-struct stat 	bin_stat;
+struct stat	bin_stat;
 
 
 int	dm_cmd_help();

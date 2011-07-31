@@ -283,3 +283,19 @@ dm_clean_dwarf()
 
 	return (DM_OK);
 }
+
+int
+dm_dwarf_find_sym(char *name, struct dm_dwarf_sym_cache_entry **s)
+{
+	struct dm_dwarf_sym_cache_entry		sym, *res;
+
+	sym.name = name;
+	res = RB_FIND(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, &sym);
+
+	if (!res)
+		return (DM_FAIL);
+
+	/* found */
+	*s = res;
+	return (DM_OK);
+}
