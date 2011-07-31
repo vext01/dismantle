@@ -1,10 +1,12 @@
 /*
-  Copyright (c) 2011 Edd Barrett. All rights reserved.
+ * Copyright (c) 2011 Edd Barrett <vext01@gmail.com>
+ *
+ * This code was based upon the simplereader.c example distrubuted with
+ * dwarfutils. The original copyright and license follows.
+ */
 
-  This code was based upon the simplereader.c example distrubuted with
-  dwarfutils. The original copyright and license follows.
-
-  Copyright (c) 2009-2010	David Anderson.	All rights reserved.
+/*
+  Copyright (c) 2009-2010 David Anderson. All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
