@@ -305,10 +305,10 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-
-	/* parse elf junk */
+	/* parse elf and dwarf junk */
 	dm_init_elf();
 	dm_parse_pht();
+	dm_parse_dwarf();
 	/* XXX sht cache */
 
 	ud_init(&ud);
@@ -323,6 +323,7 @@ main(int argc, char **argv)
 
 	/* clean up */
 	dm_clean_elf();
+	dm_clean_dwarf();
 
 	return (EXIT_SUCCESS);
 }
