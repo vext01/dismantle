@@ -1,4 +1,5 @@
 #include "dm_dis.h"
+#include "dm_dwarf.h"
 
 ud_t ud;
 NADDR cur_addr;
@@ -21,17 +22,22 @@ dm_seek(NADDR addr)
 int
 dm_cmd_seek(char **args)
 {
-	NADDR			to;
+	NADDR				 to;
+	struct dm_dwarf_sym_cache_entry	*sym;
 
 	/* seeking to a section? */
 	if (args[0][0] == '.')
 		to = dm_find_section(args[0]);
-	else
-		to = strtoll(args[0], NULL, 0);
+	else {
+		/* we first try to find a dwarf sym of that name */
+		if (dm_dwarf_find_sym(args[0], &sym) == DM_OK)
+			to = sym->offset;
+		else
+			to = strtoll(args[0], NULL, 0);
+	}
 
 	dm_seek(to);
-
-	return (0);
+	return (DM_OK);
 }
 
 /*

@@ -26,7 +26,7 @@
 #include "dm_dwarf.h"
 
 FILE		*f;
-struct stat 	bin_stat;
+struct stat	bin_stat;
 
 
 int	dm_cmd_help();
@@ -49,6 +49,7 @@ struct dm_cmd_sw {
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
+	{"offset", 1, dm_cmd_offset},
 	{"ssa", 1, dm_cmd_ssa},
 	{"cfg", 0, dm_cmd_cfg},
 	{"pht", 0, dm_cmd_pht},
@@ -304,8 +305,11 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-
+	/* parse elf and dwarf junk */
 	dm_init_elf();
+	dm_parse_pht();
+	dm_parse_dwarf();
+	/* XXX sht cache */
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, f);
@@ -316,6 +320,10 @@ main(int argc, char **argv)
 	dm_seek(dm_find_section(".text"));
 
 	dm_interp();
+
+	/* clean up */
+	dm_clean_elf();
+	dm_clean_dwarf();
 
 	return (EXIT_SUCCESS);
 }
