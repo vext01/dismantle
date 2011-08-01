@@ -40,37 +40,81 @@
 #include <libdwarf.h>
 #include <dwarf.h>
 
+#include "tree.h"
 #include "dm_dwarf.h"
 #include "common.h"
 
-extern FILE			*f;
+extern FILE		*f;
+
+RB_HEAD(dm_dwarf_sym_cache_, dm_dwarf_sym_cache_entry)
+    dm_dwarf_sym_cache = RB_INITIALIZER(&dm_dwarf_sym_cache);
+RB_GENERATE(dm_dwarf_sym_cache_,
+    dm_dwarf_sym_cache_entry, entry, dm_dwarf_sym_rb_cmp);
+
+int
+dm_dwarf_sym_rb_cmp(struct dm_dwarf_sym_cache_entry *s1,
+    struct dm_dwarf_sym_cache_entry *s2)
+{
+	return (strcmp(s1->name, s2->name));
+}
 
 int
 dm_cmd_dwarf_funcs(char **args)
+{
+
+	struct dm_dwarf_sym_cache_entry		*sym;
+
+	(void) args;
+
+	RB_FOREACH(sym, dm_dwarf_sym_cache_, &dm_dwarf_sym_cache) {
+		if (!sym->offset_err)
+			printf("  Virtual: " ADDR_FMT_64
+			    "   Offset: " ADDR_FMT_64 ":   %s()\n",
+			    sym->vaddr, sym->offset, sym->name);
+		else
+			printf("  Virtual: " ADDR_FMT_64
+			    "   Offset: %-10s:   %s()\n", sym->vaddr, "???", sym->name);
+	}
+
+	return (DM_OK); /* XXX */
+}
+
+int
+dm_parse_dwarf()
 {
 	Dwarf_Debug			dbg = 0;
 	Dwarf_Error			error;
 	Dwarf_Handler			errhand = 0;
 	Dwarf_Ptr			errarg = 0;
+	int				ret = DM_OK;
 
-	(void) args;
+	printf("%-40s", "Parsing dwarf symbols...");
 
 	if (dwarf_init(fileno(f), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
 		printf("Giving up, cannot do DWARF processing\n");
-		exit(1);
+		goto error;
 	}
 
-	read_cu_list(dbg);
+	dm_dwarf_recurse_cu(dbg);
 
-	if (dwarf_finish(dbg,&error) != DW_DLV_OK)
+	if (dwarf_finish(dbg,&error) != DW_DLV_OK) {
 		fprintf(stderr, "dwarf_finish failed!\n");
+		goto error;
+	}
 
-	return (DM_OK);
+	ret = DM_OK;
+error:
+	if (ret == DM_OK)
+		printf("[OK]\n");
+	else
+		printf("[ERR]\n");
+
+	return (ret);
 }
 
 void
-read_cu_list(Dwarf_Debug dbg)
+dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 {
 	Dwarf_Unsigned		cu_header_length = 0;
 	Dwarf_Half		version_stamp = 0;
@@ -83,7 +127,6 @@ read_cu_list(Dwarf_Debug dbg)
 	Dwarf_Die		cu_die = 0;
 
 	for(;;++cu_number) {
-
 		no_die = cu_die = 0;
 		res = DW_DLV_ERROR;
 
@@ -111,19 +154,19 @@ read_cu_list(Dwarf_Debug dbg)
 			exit(1);
 		}
 
-		get_die_and_siblings(dbg, cu_die, 0);
+		dm_dwarf_recurse_die(dbg, cu_die, 0);
 		dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 	}
 }
 
 void
-get_die_and_siblings(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
+dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 {
 	int			res = DW_DLV_ERROR;
 	Dwarf_Die		cur_die = in_die, child = 0, sib_die = 0;
 	Dwarf_Error		error;
 
-	print_die_data(dbg, in_die,in_level);
+	dm_dwarf_inspect_die(dbg, in_die,in_level);
 
 	for (;;) {
 		sib_die = 0;
@@ -135,7 +178,7 @@ get_die_and_siblings(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 		}
 
 		if (res == DW_DLV_OK)
-			get_die_and_siblings(dbg,child,in_level+1);
+			dm_dwarf_recurse_die(dbg, child, in_level + 1);
 
 		res = dwarf_siblingof(dbg, cur_die, &sib_die, &error);
 		if (res == DW_DLV_ERROR) {
@@ -150,41 +193,46 @@ get_die_and_siblings(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 			dwarf_dealloc(dbg, cur_die, DW_DLA_DIE);
 
 		cur_die = sib_die;
-		print_die_data(dbg, cur_die, in_level);
+		dm_dwarf_inspect_die(dbg, cur_die, in_level);
 	}
 
 	return;
 }
 
 int
-print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
+dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
 {
-	char			*name = 0;
-	Dwarf_Error		 error = 0;
-	Dwarf_Half		 tag = 0;
-	const char		*tagname = 0;
-	int			 res = dwarf_diename(print_me,&name,&error);
-	Dwarf_Addr		 lo;
-	ADDR64			 offset;
-	int			 offset_err = 0;
+	char				*name = 0;
+	Dwarf_Error			 error = 0;
+	Dwarf_Half			 tag = 0;
+	const char			*tagname = 0;
+	int				 res;
+	Dwarf_Addr			 lo;
+	ADDR64				 offset;
+	int				 offset_err = 0, ret = DM_FAIL;
+	struct dm_dwarf_sym_cache_entry	*sym_rec;
+
+	res = dwarf_diename(print_me,&name,&error);
 
 	if (res == DW_DLV_ERROR) {
-		printf("Error in dwarf_diename , level %d \n",level);
-		exit(1);
+		printf("Error in dwarf_diename , level %d \n", level);
+		goto clean;
 	}
 
-	if (res == DW_DLV_NO_ENTRY)
-		return (DM_FAIL);
+	if (res == DW_DLV_NO_ENTRY) {
+		goto clean;
+	}
 
 	res = dwarf_tag(print_me, &tag, &error);
 	if (res != DW_DLV_OK) {
-		printf("Error in dwarf_tag , level %d \n",level);
-		exit(1);
+		fprintf(stderr, "Error in dwarf_tag , level %d \n", level);
+		goto clean;
 	}
 
-	/* only functions */
-	if (tag != DW_TAG_subprogram)
-		return 1;
+	if (tag != DW_TAG_subprogram) {
+		ret = DM_OK;
+		goto clean; /* we only extract funcs for now */
+	}
 
 	/* get virtual addr */
 	res = dwarf_lowpc(print_me, &lo, &error);
@@ -192,28 +240,62 @@ print_die_data(Dwarf_Debug dbg, Dwarf_Die print_me,int level)
 		fprintf(stderr, "Failed to dwarf_lopc()");
 		if (res == DW_DLV_NO_ENTRY)
 			fprintf(stderr, "no entry\n");
-		exit(1);
+		goto clean;
 	}
 
 	/* get the function name */
 	res = dwarf_get_TAG_name(tag, &tagname);
 	if (res != DW_DLV_OK) {
 		fprintf(stderr, "Failed to dwarf_get_TAG_name");
-		exit(1);
+		goto clean;
 	}
 
 	offset_err = 0;
 	if ((dm_offset_from_vaddr(lo, &offset)) != DM_OK)
 		offset_err = 1;
 
-	if (!offset_err)
-		printf("  Virtual: " ADDR_FMT_64
-		    "   Offset: " ADDR_FMT_64 ":   %s()\n", lo, offset, name);
-	else
-		printf("  Virtual: " ADDR_FMT_64
-		    "   Offset: %-10s:   %s()\n", lo, "???", name);
+	sym_rec = calloc(1, sizeof(struct dm_dwarf_sym_cache_entry));
+	sym_rec->name = strdup(name);
+	sym_rec->vaddr = lo;
+	sym_rec->offset = offset;
+	sym_rec->sym_type = DW_TAG_subprogram;
+	sym_rec->offset_err = offset_err;
+	RB_INSERT(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, sym_rec);
 
-	dwarf_dealloc(dbg,name,DW_DLA_STRING);
+clean:
+	if (name)
+		dwarf_dealloc(dbg,name,DW_DLA_STRING);
 
-	return (1);
+	return (DM_OK);
+}
+
+int
+dm_clean_dwarf()
+{
+	struct dm_dwarf_sym_cache_entry		*var, *nxt;
+
+	for (var = RB_MIN(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache); var != NULL; var = nxt) {
+		nxt = RB_NEXT(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
+		RB_REMOVE(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
+		free(var->name);
+		free(var);
+	}
+
+	return (DM_OK);
+}
+
+int
+dm_dwarf_find_sym(char *name, struct dm_dwarf_sym_cache_entry **s)
+{
+	struct dm_dwarf_sym_cache_entry		sym, *res;
+
+	sym.name = name;
+	res = RB_FIND(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, &sym);
+
+	if (!res)
+		return (DM_FAIL);
+
+	/* found */
+	*s = res;
+	return (DM_OK);
 }
