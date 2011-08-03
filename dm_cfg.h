@@ -39,6 +39,8 @@ struct dm_cfg_node {
 	int post; /* Post-order position */
 	int rpost; /* Reverse Post-order position */
 	struct dm_cfg_node *idom; /* Immediate dominator of node */
+	struct dm_cfg_node **dom_frontiers;
+	int df_count;
 };
 
 /*

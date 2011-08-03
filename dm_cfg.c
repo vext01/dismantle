@@ -163,6 +163,8 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->pre = 0;
 	node->rpost = 0;
 	node->idom = NULL;
+	node->dom_frontiers = NULL;
+	node->df_count = 0;
 
 	/* Add node to the free list so we can free the memory at the end */
 	p->ptr = (void*)node;
@@ -322,6 +324,7 @@ dm_find_cfg_node_containing(NADDR addr)
 			 * We found a matching block. Now find address before
 			 * addr and split the block, return tail block
 			 */
+			printf("Found a block needed splitting\n");
 			for (dm_seek(node->start);
 			    addr2 + read != addr; addr2 += read)
 				read = ud_disassemble(&ud);

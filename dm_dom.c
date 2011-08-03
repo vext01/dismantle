@@ -32,7 +32,7 @@ int
 dm_cmd_dom(char **args)
 {
 	struct dm_cfg_node	*cfg = NULL, *node = NULL;
-	int			c = 0;
+	int			i = 0, j = 0;
 
 	(void) args;
 
@@ -45,12 +45,21 @@ dm_cmd_dom(char **args)
 	/* Build dominator tree */
 	dm_dom(cfg);
 
+	/* Build dominance frontier sets*/
+	dm_dom_frontiers();
+
 	/* Print dominator info */
-	for (c = 0; c < p_length; c++) {
-                node = (struct dm_cfg_node*)rpost[c];
+	for (i = 0; i < p_length; i++) {
+                node = (struct dm_cfg_node*)rpost[i];
                 printf("Block %d (start: " NADDR_FMT ", end: " NADDR_FMT
 		    ")\n\tImmediate dominator: %d\n", node->post, node->start,
 		    node->end, node->idom->post);
+		if (node->df_count) {
+			printf("\tDominance frontier set: ");
+			for (j = 0; j < node->df_count; j++)
+				printf("%d ", node->dom_frontiers[j]->post);
+			printf("\n");
+		}
         }
 
 	/* Display dominator tree */
@@ -69,11 +78,11 @@ void
 dm_dom(struct dm_cfg_node *cfg)
 {
 	struct dm_cfg_node	*node = NULL, *new_idom = NULL;
-	int			 changed = 1, c = 0, d = 0, e = 0;
+	int			 changed = 1, i = 0, j = 0, k = 0;
 
-	/* We use the visited field to indicate a node has been processed */
-	for (c = 0; c < p_length; c++)
-		((struct dm_cfg_node*)rpost[c])->visited = 0;
+	/* We use the 'visited' field to indicate a node has been processed */
+	for (i = 0; i < p_length; i++)
+		((struct dm_cfg_node*)rpost[i])->visited = 0;
 
 	/* First node dominates itself */
 	cfg->idom = cfg;
@@ -81,18 +90,23 @@ dm_dom(struct dm_cfg_node *cfg)
 
 	while (changed) {
 		changed = 0;
-		for (c = 1; c < p_length; c++) {
-			node = (struct dm_cfg_node*)rpost[c];
-			for (d = 0; d < node->p_count; d++)
-				if (node->parents[d]->visited) {
-					new_idom = node->parents[d];
+		/* For all nodes except start node, in reverse post-order */
+		for (i = 1; i < p_length; i++) {
+			node = (struct dm_cfg_node*)rpost[i];
+
+			/* new_idom = first processed parent of node */
+			for (j = 0; j < node->p_count; j++)
+				if (node->parents[j]->visited) {
+					new_idom = node->parents[j];
 					break;
 				}
-			for (e = 0; e < node->p_count; e++)
-				if ((e != d) && (node->parents[e]->idom !=
+
+			/* For all other parents of node */
+			for (k = 0; k < node->p_count; k++)
+				if ((j != k) && (node->parents[k]->idom !=
 				    NULL))
 					new_idom =
-					    dm_intersect(node->parents[e],
+					    dm_intersect(node->parents[k],
 					    new_idom);
 			if (node->idom != new_idom) {
 				node->idom = new_idom;
@@ -119,6 +133,48 @@ dm_intersect(struct dm_cfg_node *b1, struct dm_cfg_node *b2)
 	return finger1;
 }
 
+/*
+ * Build dominance frontier sets for all nodes
+ */
+void
+dm_dom_frontiers()
+{
+	struct dm_cfg_node *node = NULL, *runner = NULL;
+	int i = 0, j = 0, duplicate = 0;
+
+	/* For all nodes */
+	for (p = p_head; p->ptr != NULL; p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		/* For all parents of node */
+		for (i = 0; (i < node->p_count) && (node->p_count > 1); i++) {
+			runner = node->parents[i];
+			while (runner != node->idom) {
+				/* Don't add duplicate nodes to the set */
+				duplicate = 0;
+				for (j = 0; j < runner->df_count; j++)
+					if (runner->dom_frontiers[j] == node) {
+						duplicate = 1;
+						break;
+					}
+				/* Add node to runners frontier set */
+				if (!duplicate) {
+					runner->dom_frontiers = realloc(
+					    runner->dom_frontiers,
+					    ++runner->df_count * sizeof(void*));
+					runner->dom_frontiers[
+					    runner->df_count - 1] = node;
+				}
+				runner = runner->idom;
+			}
+		}
+	}
+
+
+}
+
+/*
+ * Build a graphviz graph of the dominator tree and display it
+ */
 void
 dm_graph_dom()
 {

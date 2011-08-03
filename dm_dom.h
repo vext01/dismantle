@@ -24,5 +24,6 @@ int			dm_cmd_dom(char **args);
 struct dm_cfg_node*	dm_intersect(struct dm_cfg_node *b1,
 			    struct dm_cfg_node *b2);
 void			dm_dom(struct dm_cfg_node *cfg);
+void			dm_dom_frontiers();
 void			dm_graph_dom();
 #endif
