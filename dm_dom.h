@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef dm_dom_h
-#define dm_dom_h
+#ifndef __DM_DOM_H
+#define __DM_DOM_H
 
 #include "common.h"
 #include "dm_cfg.h"
@@ -25,5 +25,6 @@ struct dm_cfg_node*	dm_intersect(struct dm_cfg_node *b1,
 			    struct dm_cfg_node *b2);
 void			dm_dom(struct dm_cfg_node *cfg);
 void			dm_dom_frontiers();
+void			dm_dom_frontiers_free();
 void			dm_graph_dom();
 #endif

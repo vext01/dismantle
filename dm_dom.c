@@ -65,6 +65,9 @@ dm_cmd_dom(char **args)
 	/* Display dominator tree */
 	dm_graph_dom();
 
+	/* Free dominance frontier sets */
+	dm_dom_frontiers_free();
+
 	/* Free all CFG structures */
 	dm_free_cfg();
 
@@ -170,6 +173,16 @@ dm_dom_frontiers()
 	}
 
 
+}
+
+/*
+ * Free dominance frontier sets of every node
+ */
+void
+dm_dom_frontiers_free()
+{
+	for (p = p_head; p->ptr != NULL; p = p->next)
+		free(((struct dm_cfg_node*)p->ptr)->dom_frontiers);
 }
 
 /*
