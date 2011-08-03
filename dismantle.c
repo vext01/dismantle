@@ -23,6 +23,8 @@
 #include "dm_dis.h"
 #include "dm_elf.h"
 #include "dm_cfg.h"
+#include "dm_dom.h"
+#include "dm_ssa.h"
 #include "dm_dwarf.h"
 
 FILE		*f;
@@ -50,8 +52,9 @@ struct dm_cmd_sw {
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
 	{"offset", 1, dm_cmd_offset},
-	{"ssa", 1, dm_cmd_ssa},
+	{"ssa", 0, dm_cmd_ssa},
 	{"cfg", 0, dm_cmd_cfg},
+	{"dom", 0, dm_cmd_dom},
 	{"pht", 0, dm_cmd_pht},
 	{"sht", 0, dm_cmd_sht},
 	{"hex", 1, dm_cmd_hex},         {"px", 1, dm_cmd_hex},
@@ -72,7 +75,10 @@ struct dm_help_rec {
 	{"pht",			"Show program header table"},
 	{"sht",			"Show section header table"},
 	{"/ str",               "Find ASCII string from current pos"},
-	{"cfg",			"Output static CFG information for current function"},
+	{"cfg",			"Output static CFG for current function"},
+	{"dom",			"Output dominance tree and frontier sets for"
+				    "current function"},
+	{"ssa",			"Output SSA form of current function"},
 	{"help/?",		"Show this help"},
 	{"CTRL+D",		"Exit"},
 	{NULL, 0},
