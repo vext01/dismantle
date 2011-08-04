@@ -71,7 +71,10 @@ void			dm_depth_first_walk(struct dm_cfg_node *cfg);
 
 void			dm_add_parent(struct dm_cfg_node *node,
 			    struct dm_cfg_node *parent);
+struct dm_cfg_node*	dm_split_cfg_block(struct dm_cfg_node *node,
+			    NADDR addr);
 struct dm_cfg_node*	dm_find_cfg_node_starting(NADDR addr);
+struct dm_cfg_node*	dm_find_cfg_node_ending(NADDR addr);
 struct dm_cfg_node*	dm_find_cfg_node_containing(NADDR addr);
 
 #endif
