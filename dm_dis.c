@@ -89,3 +89,21 @@ dm_cmd_dis_noargs(char **args)
 	dm_cmd_dis(&arg);
 	return (0);
 }
+
+long int
+dm_get_jump_target()
+{
+	switch (ud.operand[0].size) {
+		case 8:
+			return (long int)ud.operand[0].lval.sbyte + ud.pc;
+		case 16:
+			return (long int)ud.operand[0].lval.sword + ud.pc;
+		case 32:
+			return (long int)ud.operand[0].lval.sdword + ud.pc;
+		case 64:
+			return (long int)ud.operand[0].lval.sqword + ud.pc;
+		default:
+			return (long int)ud.operand[0].lval.sqword + ud.pc;
+	}
+}
+

@@ -12,5 +12,6 @@ int dm_cmd_seek(char **args);
 int dm_disasm_op(NADDR addr);
 int dm_cmd_dis(char **args);
 int dm_cmd_dis_noargs(char **args);
+long int dm_get_jump_target();
 
 #endif
