@@ -23,6 +23,16 @@
 #include <sys/stat.h>
 #include "dm_elf.h"
 
+struct dm_file_info {
+	FILE		*fptr;
+	uint8_t		elf;
+	uint8_t		dwarf;
+	uint8_t		bits; /* 32 or 64 binary */
+	struct stat	stat;
+};
+
+extern struct dm_file_info	file_info;
+
 #define DM_OK		0
 #define DM_FAIL		-1
 

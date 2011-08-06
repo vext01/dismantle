@@ -14,6 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <err.h>
+#include <sysexits.h>
+
+#include <libelf/gelf.h>
+
 #include "dm_elf.h"
 
 Elf						*elf = NULL;
@@ -34,7 +39,7 @@ struct dm_pht_type pht_types[] = {
 	{PT_HIPROC,		"PT_HIPROC",		"CPU system-specific (hi/end mark)"},
 /* XXX define thses for !glibc systems */
 #ifdef __LINUX__
-	{PT_GNU_EH_FRAME, 	"PT_GNU_EH_FRAME",	"GCC .eh_frame_hdr segment"},
+	{PT_GNU_EH_FRAME,	"PT_GNU_EH_FRAME",	"GCC .eh_frame_hdr segment"},
 	{PT_GNU_STACK,		"PT_GNU_STACK",		"Indicates stack executability"},
 	{PT_GNU_RELRO,		"PT_GNU_RELRO",		"Read-only after relocation"},
 	{PT_LOSUNW,		"PT_LOSUNW",		"Sun specific (lo/start mark)"},
@@ -111,6 +116,9 @@ int
 dm_init_elf()
 {
 	Elf_Kind		 ek;
+	GElf_Ehdr		 ehdr;
+	int			 nbits;
+	char			*ident;
 
 	SIMPLEQ_INIT(&pht_cache);
 
@@ -119,7 +127,7 @@ dm_init_elf()
 		goto err;
 	}
 
-	if ((elf = elf_begin(fileno(f), ELF_C_READ, NULL)) == NULL) {
+	if ((elf = elf_begin(fileno(file_info.fptr), ELF_C_READ, NULL)) == NULL) {
 		fprintf(stderr, "elf_begin: %s\n", elf_errmsg(-1));
 		goto err;
 	}
@@ -130,6 +138,21 @@ dm_init_elf()
 		fprintf(stderr, "Does not appear to have an ELF header\n");
 		goto err;
 	}
+
+	file_info.elf = 1;
+
+	/* Let's take a look at the execution header */
+	if ( gelf_getehdr(elf, &ehdr) == NULL) {
+		fprintf(stderr, "%s\n", elf_errmsg(-1));
+	} else {
+		if ((nbits = gelf_getclass(elf)) == ELFCLASSNONE)
+			fprintf(stderr, "%s\n", elf_errmsg(-1));
+
+		file_info.bits = nbits;
+	}
+
+	if ((ident = elf_getident(elf, NULL)) == NULL)
+		fprintf(stderr, "%s\n", elf_errmsg(-1));
 
 	return (DM_OK);
 err:

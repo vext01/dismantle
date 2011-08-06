@@ -92,7 +92,7 @@ dm_parse_dwarf()
 
 	printf("%-40s", "Parsing dwarf symbols...");
 
-	if (dwarf_init(fileno(f), DW_DLC_READ, errhand,
+	if (dwarf_init(fileno(file_info.fptr), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
 		printf("Can't parse ");
 		goto error;

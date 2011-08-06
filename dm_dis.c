@@ -27,7 +27,7 @@ dm_seek(NADDR addr)
 {
 	cur_addr = addr;
 
-	if (fseek(f, cur_addr, SEEK_SET) < 0) {
+	if (fseek(file_info.fptr, cur_addr, SEEK_SET) < 0) {
 		perror("seek");
 		return (-1);
 	}

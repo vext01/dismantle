@@ -27,9 +27,8 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
-FILE		*f;
-struct stat	bin_stat;
-
+struct stat			 bin_stat;
+struct dm_file_info		file_info;
 
 int	dm_cmd_help();
 void	dm_parse_cmd(char *line);
@@ -131,7 +130,7 @@ dm_dump_hex_pretty(uint8_t *buf, size_t sz, NADDR start_addr)
 int
 dm_dump_hex(size_t bytes)
 {
-	size_t		orig_pos = ftell(f);
+	size_t		orig_pos = ftell(file_info.fptr);
 	size_t		done = 0, read = 0, to_read = DM_HEX_CHUNK;
 	uint8_t		buf[DM_HEX_CHUNK];
 
@@ -140,21 +139,21 @@ dm_dump_hex(size_t bytes)
 		if (DM_HEX_CHUNK > bytes - done)
 			to_read = bytes - done;
 
-		read = fread(buf, 1, to_read, f);
+		read = fread(buf, 1, to_read, file_info.fptr);
 
-		if ((!read) && (ferror(f))) {
+		if ((!read) && (ferror(file_info.fptr))) {
 			perror("failed to read bytes");
-			clearerr(f);
+			clearerr(file_info.fptr);
 			return (DM_FAIL);
 		}
 		dm_dump_hex_pretty(buf, read, orig_pos + done);
 
-		if ((!read) && (feof(f)))
+		if ((!read) && (feof(file_info.fptr)))
 			break;
 	}
 	printf("\n");
 
-	if (fseek(f, orig_pos, SEEK_SET) < 0) {
+	if (fseek(file_info.fptr, orig_pos, SEEK_SET) < 0) {
 		perror("could not seek file");
 		return (DM_FAIL);
 	}
@@ -183,7 +182,7 @@ dm_cmd_findstr(char **args)
 	NADDR                    byte = 0;
 	char                    *find = args[0], *cmp = NULL;
 	size_t                   find_len = strlen(find);
-	size_t                   orig_pos = ftell(f), read;
+	size_t                   orig_pos = ftell(file_info.fptr), read;
 	int                      ret = DM_FAIL;
 	int                      hit = 0;
 
@@ -192,7 +191,7 @@ dm_cmd_findstr(char **args)
 		goto clean;
 	}
 
-	rewind(f);
+	rewind(file_info.fptr);
 
 	cmp = malloc(find_len);
 	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
@@ -203,12 +202,12 @@ dm_cmd_findstr(char **args)
 			(byte / (float) (bin_stat.st_size - find_len) * 100));
 #endif
 
-		if (fseek(f, byte, SEEK_SET))
+		if (fseek(file_info.fptr, byte, SEEK_SET))
 			perror("fseek");
 
-		read = fread(cmp, 1, find_len, f);
+		read = fread(cmp, 1, find_len, file_info.fptr);
 		if (!read) {
-			if (feof(f))
+			if (feof(file_info.fptr))
 				break;
 			perror("could not read file");
 			goto clean;
@@ -223,7 +222,7 @@ clean:
 	if (cmp)
 		free(cmp);
 
-	if (fseek(f, orig_pos, SEEK_SET))
+	if (fseek(file_info.fptr, orig_pos, SEEK_SET))
 		perror("fseek");
 
 	printf("\n");
@@ -298,6 +297,25 @@ dm_interp()
 }
 
 int
+dm_open_file(char *path)
+{
+	memset(&file_info, 0, sizeof(file_info));
+	file_info.bits = 64; /* we guess */
+
+	if ((file_info.fptr = fopen(path, "r")) == NULL) {
+		perror("open");
+		return (DM_FAIL);
+	}
+
+	if (fstat(fileno(file_info.fptr), &file_info.stat) < 0) {
+		perror("fstat");
+		return (DM_FAIL);
+	}
+
+	return (DM_OK);
+}
+
+int
 main(int argc, char **argv)
 {
 	if (argc != 2) {
@@ -305,24 +323,16 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	if ((f = fopen(argv[1], "r")) == NULL) {
-		perror("open");
-		exit(1);
-	}
-
-	if (fstat(fileno(f), &bin_stat) < 0) {
-		perror("fstat");
-		exit(1);
-	}
+	if(dm_open_file(argv[1]) != DM_OK)
+		goto clean;
 
 	/* parse elf and dwarf junk */
 	dm_init_elf();
 	dm_parse_pht();
 	dm_parse_dwarf();
-	/* XXX sht cache */
 
 	ud_init(&ud);
-	ud_set_input_file(&ud, f);
+	ud_set_input_file(&ud, file_info.fptr);
 	ud_set_mode(&ud, 64);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
@@ -332,8 +342,12 @@ main(int argc, char **argv)
 	dm_interp();
 
 	/* clean up */
+clean:
 	dm_clean_elf();
 	dm_clean_dwarf();
+
+	if (file_info.fptr != NULL)
+		fclose(file_info.fptr);
 
 	return (EXIT_SUCCESS);
 }
