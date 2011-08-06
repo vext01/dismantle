@@ -18,9 +18,9 @@
 #include "dm_dis.h"
 #include "dm_dwarf.h"
 
-ud_t ud;
-NADDR cur_addr;
-uint8_t bits = 64;
+ud_t			ud;
+NADDR			cur_addr;
+uint8_t			bits = 64;
 
 int
 dm_seek(NADDR addr)
