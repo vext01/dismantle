@@ -64,9 +64,10 @@ dm_cmd_seek(char **args)
 int
 dm_disasm_op(NADDR addr)
 {
-	unsigned int		 read;
-	char			*hex;
-	NADDR			 target = 0;
+	struct dm_dwarf_sym_cache_entry		*sym;
+	unsigned int				 read;
+	char					*hex;
+	NADDR					 target = 0;
 
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
@@ -79,38 +80,8 @@ dm_disasm_op(NADDR addr)
 	printf("  " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
 
 	if (ud.mnemonic == UD_Icall) {
-
-		switch (ud.operand[0].size) {
-		case 8:
-			if (ud.br_far)
-				target = ud.operand[0].lval.ubyte;
-			else
-				target = ud.pc + ud.operand[0].lval.sbyte;
-			break;
-		case 16:
-			if (ud.br_far)
-				target = ud.operand[0].lval.uword;
-			else
-				target = ud.pc + ud.operand[0].lval.sword;
-			break;
-		case 32:
-			if (ud.br_far)
-				target = ud.operand[0].lval.udword;
-			else
-				target = ud.pc + ud.operand[0].lval.sdword;
-			break;
-		case 64:
-			if (ud.br_far)
-				target = ud.operand[0].lval.uqword;
-			else
-				target = ud.pc + ud.operand[0].lval.sqword;
-			break;
-		default:
-			fprintf(stderr, "unknown operand size");
-		}
-
+		target = dm_get_jump_target(ud);
 		/* if the target was a symbol we know, then say so */
-		struct dm_dwarf_sym_cache_entry			*sym;
 		if (dm_dwarf_find_sym_at_offset(target, &sym) == DM_OK) {
 			printf("\t(%s)", sym->name);
 
@@ -152,6 +123,42 @@ dm_cmd_dis_noargs(char **args)
 	return (0);
 }
 
+
+NADDR
+dm_get_jump_target(struct ud ud)
+{
+	NADDR	target;
+	switch (ud.operand[0].size) {
+		case 8:
+			if (ud.br_far)
+				target = ud.operand[0].lval.ubyte;
+			else
+				target = ud.pc + ud.operand[0].lval.sbyte;
+			break;
+		case 16:
+			if (ud.br_far)
+				target = ud.operand[0].lval.uword;
+			else
+				target = ud.pc + ud.operand[0].lval.sword;
+			break;
+		case 32:
+			if (ud.br_far)
+				target = ud.operand[0].lval.udword;
+			else
+				target = ud.pc + ud.operand[0].lval.sdword;
+			break;
+		case 64:
+			if (ud.br_far)
+				target = ud.operand[0].lval.uqword;
+			else
+				target = ud.pc + ud.operand[0].lval.sqword;
+			break;
+		default:
+			fprintf(stderr, "unknown operand size");
+	}
+	return target;
+}
+
 /*
  * set bits to 32 or 64
  */
@@ -177,3 +184,4 @@ dm_cmd_bits_noargs(char **args)
 	printf("  %d\n", bits);
 	return (DM_OK);
 }
+
