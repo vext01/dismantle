@@ -57,7 +57,7 @@ dm_cmd_dom(char **args)
 		if (node->df_count) {
 			printf("\tDominance frontier set: ");
 			for (j = 0; j < node->df_count; j++)
-				printf("%d ", node->dom_frontiers[j]->post);
+				printf("%d ", node->df_set[j]->post);
 			printf("\n");
 		}
         }
@@ -155,16 +155,16 @@ dm_dom_frontiers()
 				/* Don't add duplicate nodes to the set */
 				duplicate = 0;
 				for (j = 0; j < runner->df_count; j++)
-					if (runner->dom_frontiers[j] == node) {
+					if (runner->df_set[j] == node) {
 						duplicate = 1;
 						break;
 					}
 				/* Add node to runners frontier set */
 				if (!duplicate) {
-					runner->dom_frontiers = realloc(
-					    runner->dom_frontiers,
+					runner->df_set = realloc(
+					    runner->df_set,
 					    ++runner->df_count * sizeof(void*));
-					runner->dom_frontiers[
+					runner->df_set[
 					    runner->df_count - 1] = node;
 				}
 				runner = runner->idom;
@@ -182,7 +182,7 @@ void
 dm_dom_frontiers_free()
 {
 	for (p = p_head; p->ptr != NULL; p = p->next)
-		free(((struct dm_cfg_node*)p->ptr)->dom_frontiers);
+		free(((struct dm_cfg_node*)p->ptr)->df_set);
 }
 
 /*
