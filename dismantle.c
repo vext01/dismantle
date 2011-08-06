@@ -149,6 +149,7 @@ dm_dump_hex(size_t bytes)
 	size_t		done = 0, read = 0, to_read = DM_HEX_CHUNK;
 	uint8_t		buf[DM_HEX_CHUNK];
 
+	printf("\n");
 	for (done = 0; done < bytes; done += read) {
 		if (DM_HEX_CHUNK > bytes - done)
 			to_read = bytes - done;
@@ -170,6 +171,7 @@ dm_dump_hex(size_t bytes)
 		perror("could not seek file");
 		return (DM_FAIL);
 	}
+	printf("\n");
 
 	return (DM_OK);
 }
