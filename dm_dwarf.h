@@ -41,3 +41,5 @@ int		dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level);
 int		dm_parse_dwarf();
 int		dm_clean_dwarf();
 int		dm_dwarf_find_sym(char *name, struct dm_dwarf_sym_cache_entry **s);
+int		dm_dwarf_find_sym_at_offset(ADDR64 off,
+		    struct dm_dwarf_sym_cache_entry **ent);

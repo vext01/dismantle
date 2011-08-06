@@ -302,3 +302,20 @@ dm_dwarf_find_sym(char *name, struct dm_dwarf_sym_cache_entry **s)
 	*s = res;
 	return (DM_OK);
 }
+
+int
+dm_dwarf_find_sym_at_offset(ADDR64 off, struct dm_dwarf_sym_cache_entry **ent)
+{
+	struct dm_dwarf_sym_cache_entry		*e;
+
+	/* rbtree is keyed by symname, so we must iterate */
+	RB_FOREACH(e, dm_dwarf_sym_cache_, &dm_dwarf_sym_cache) {
+		if (e->offset == off) {
+			*ent = e;
+			return (DM_OK);
+		}
+	}
+
+	return (DM_FAIL);
+
+}
