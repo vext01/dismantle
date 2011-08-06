@@ -54,7 +54,6 @@ int	dm_cmd_hex_noargs(char **args);
 int	dm_cmd_findstr(char **args);
 int	dm_cmd_info(char **args);
 
-
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
@@ -84,20 +83,20 @@ struct dm_help_rec {
 	char		*cmd;
 	char		*descr;
 } help_recs[] = {
-	{"/ str",               "Find ASCII string from current pos"},
-	{"CTRL+D",		"Exit"},
-	{"bits [set_to]",	"Get/set architecture (32 or 64)\n"},
-	{"cfg",			"Show static CFG for current function"},
-	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
-	{"dom",			"Show dominance tree and frontiers of cur func"},
-	{"funcs/f",		"Show functions from dwarf data"},
-	{"help/?",		"Show this help"},
-	{"hex/px [len]",        "Dump hex (64 or 'len' bytes)"},
-	{"info/i",		"Show file information"},
-	{"pht",			"Show program header table"},
-	{"seek/s addr",		"Seek to an address"},
-	{"sht",			"Show section header table"},
-	{"ssa",			"Output SSA form of current function"},
+	{"  / str",		"Find ASCII string from current pos"},
+	{"  CTRL+D",		"Exit"},
+	{"  bits [set_to]",	"Get/set architecture (32 or 64)"},
+	{"  cfg",		"Show static CFG for current function"},
+	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"  dom",		"Show dominance tree and frontiers of cur func"},
+	{"  funcs/f",		"Show functions from dwarf data"},
+	{"  help/?",		"Show this help"},
+	{"  hex/px [len]",	"Dump hex (64 or 'len' bytes)"},
+	{"  info/i",		"Show file information"},
+	{"  pht",		"Show program header table"},
+	{"  seek/s addr",	"Seek to an address"},
+	{"  sht",		"Show section header table"},
+	{"  ssa",		"Output SSA form of current function"},
 	{NULL, 0},
 };
 
@@ -150,7 +149,6 @@ dm_dump_hex(size_t bytes)
 	size_t		done = 0, read = 0, to_read = DM_HEX_CHUNK;
 	uint8_t		buf[DM_HEX_CHUNK];
 
-	printf("\n");
 	for (done = 0; done < bytes; done += read) {
 		if (DM_HEX_CHUNK > bytes - done)
 			to_read = bytes - done;
@@ -167,7 +165,6 @@ dm_dump_hex(size_t bytes)
 		if ((!read) && (feof(file_info.fptr)))
 			break;
 	}
-	printf("\n");
 
 	if (fseek(file_info.fptr, orig_pos, SEEK_SET) < 0) {
 		perror("could not seek file");
@@ -256,7 +253,6 @@ clean:
 	if (fseek(file_info.fptr, orig_pos, SEEK_SET))
 		perror("fseek");
 
-	printf("\n");
 	return (DM_OK);
 }
 
@@ -266,12 +262,10 @@ dm_cmd_help()
 {
 	struct dm_help_rec	*h = help_recs;
 
-	printf("\n");
 	while (h->cmd != 0) {
 		printf("%-15s   %s\n", h->cmd, h->descr);
 		h++;
 	}
-	printf("\n");
 
 	return (DM_OK);
 }
@@ -365,7 +359,7 @@ main(int argc, char **argv)
 
 	ud_init(&ud);
 	ud_set_input_file(&ud, file_info.fptr);
-	ud_set_mode(&ud, 64);
+	ud_set_mode(&ud, file_info.bits);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
 	/* start at .text */
@@ -373,6 +367,7 @@ main(int argc, char **argv)
 
 	printf("%s\n", banner);
 	dm_cmd_info(NULL);
+	printf("\n");
 
 	dm_interp();
 

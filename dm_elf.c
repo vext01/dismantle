@@ -269,7 +269,6 @@ dm_cmd_sht(char **args)
 
 	ret = DM_OK;
 clean:
-	printf("\n");
 	return (ret);
 }
 

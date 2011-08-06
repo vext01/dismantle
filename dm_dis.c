@@ -20,7 +20,6 @@
 
 ud_t			ud;
 NADDR			cur_addr;
-uint8_t			bits = 64;
 
 int
 dm_seek(NADDR addr)
@@ -172,7 +171,9 @@ dm_cmd_bits(char **args)
 		return (DM_FAIL);
 	}
 
-	bits = b;
+	file_info.bits = b;
+	ud_set_mode(&ud, b);
+
 	return (DM_OK);
 }
 
@@ -181,7 +182,7 @@ dm_cmd_bits_noargs(char **args)
 {
 	(void) args;
 
-	printf("  %d\n", bits);
+	printf("  %d\n", file_info.bits);
 	return (DM_OK);
 }
 
