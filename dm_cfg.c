@@ -188,8 +188,12 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->pre = 0;
 	node->rpost = 0;
 	node->idom = NULL;
-	node->dom_frontiers = NULL;
+	node->df_set = NULL;
 	node->df_count = 0;
+	node->def_vars = NULL;
+	node->dv_count = 0;
+	node->phi_vars = NULL;
+	node->pv_count = 0;
 
 	/* Add node to the free list so we can free the memory at the end */
 	p->ptr = (void*)node;

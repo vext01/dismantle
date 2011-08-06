@@ -29,23 +29,26 @@ struct dm_instruction_se {
 };
 
 struct dm_cfg_node {
-	NADDR start;
-	NADDR end;
-	struct dm_cfg_node **children;
-	struct dm_cfg_node **parents;
-	int p_count;
-	int visited;
-	int pre; /* Pre-order position */
-	int post; /* Post-order position */
-	int rpost; /* Reverse Post-order position */
-	struct dm_cfg_node *idom; /* Immediate dominator of node */
-	struct dm_cfg_node **dom_frontiers;
-	int df_count;
+	NADDR			  start;
+	NADDR			  end;
+	struct dm_cfg_node	**children;
+	struct dm_cfg_node	**parents;
+	int			  p_count;
+	int			  visited;
+	int			  pre;     /* Pre-order position */
+	int			  post;    /* Post-order position */
+	int			  rpost;   /* Reverse Post-order position */
+	struct dm_cfg_node	 *idom;	   /* Immediate dominator of node */
+	struct dm_cfg_node	**df_set;  /* Dominance frontier set of node */
+	int			  df_count;
+	enum ud_type		 *def_vars;/* Vars defined in this node */
+	int			  dv_count;
+	enum ud_type		 *phi_vars;/* Vars requiring phi funcs */
+	int			  pv_count;
 };
 
 /*
- * A linked list to keep track of all the CFG
- * blocks so we can free them at the end.
+ * A linked list of all the CFG blocks so we can free them at the end.
  * XXX queue.h
  */
 struct ptrs {
@@ -53,9 +56,8 @@ struct ptrs {
 	struct ptrs	*next;
 };
 
-void		dm_instruction_se_init();
-
-int		dm_cmd_cfg(char **args);
+void			dm_instruction_se_init();
+int			dm_cmd_cfg(char **args);
 
 struct dm_cfg_node*	dm_recover_cfg();
 void			dm_init_cfg();

@@ -291,6 +291,7 @@ dm_interp()
 		}
 		dm_update_prompt();
 	}
+	printf("\n");
 }
 
 int

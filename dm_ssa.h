@@ -22,12 +22,17 @@
 #include "dm_cfg.h"
 
 struct dm_ssa_index {
-        enum ud_type                    reg;
-        int                             index;
+	enum ud_type		  reg;
+	int			  index;
+	struct dm_cfg_node	**def_nodes; /* Nodes where var defined */
+	int			  dn_count;
+	struct dm_cfg_node	**phi_nodes; /* Nodes with phi funcs for var*/
+	int			  pn_count;
 };
 
-void            dm_ssa_index_init(struct dm_ssa_index **indices);
-int             dm_cmd_ssa(char **args);
+void	dm_ssa_find_var_defs();
+void	dm_ssa_index_init();
+int	dm_cmd_ssa(char **args);
 
 #endif
 
