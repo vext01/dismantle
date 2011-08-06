@@ -235,12 +235,6 @@ dm_cmd_findstr(char **args)
 	cmp = malloc(find_len);
 	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
 
-#if 0
-		printf("\r" NADDR_FMT "/" NADDR_FMT " (% 3d%%)", byte,
-			(NADDR) (bin_stat.st_size - find_len),
-			(byte / (float) (bin_stat.st_size - find_len) * 100));
-#endif
-
 		if (fseek(file_info.fptr, byte, SEEK_SET))
 			perror("fseek");
 
