@@ -27,6 +27,19 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
+
+char *banner =
+"        	       ___                            __  __   \n"
+"         	  ____/ (_)________ ___  ____ _____  / /_/ /__ \n"
+"        	 / __  / / ___/ __ `__ \\/ __ `/ __ \\/ __/ / _ \\\n"
+"        	/ /_/ / (__  ) / / / / / /_/ / / / / /_/ /  __/\n"
+"        	\\__,_/_/____/_/ /_/ /_/\\__,_/_/ /_/\\__/_/\\___/ \n"
+"\n"
+"        	      Small i386/amd64 binary browser\n"
+"\n"
+"        	  (c) Edd Barrett 2011	<vext01@gmail.com>\n"
+"        	  (c) Ed Robbins 2011	<edd.robbins@gmail.com>\n";
+
 struct stat			 bin_stat;
 struct dm_file_info		file_info;
 
@@ -184,12 +197,12 @@ dm_cmd_info(char **args)
 {
 	(void) args;
 
-	printf("  %-30s %s\n", "Filename:", file_info.name);
-	printf("  %-30s %llu\n", "Size:", file_info.stat.st_size);
-	printf("  %-30s %hd\n", "Bits:", file_info.bits);
-	printf("  %-30s %s\n", "Ident:", file_info.ident);
-	printf("  %-30s %hd\n", "ELF:", file_info.elf);
-	printf("  %-30s %hd\n", "DWARF:", file_info.dwarf);
+	printf("  %-16s %s\n", "Filename:", file_info.name);
+	printf("  %-16s %llu\n", "Size:", file_info.stat.st_size);
+	printf("  %-16s %hd\n", "Bits:", file_info.bits);
+	printf("  %-16s %s\n", "Ident:", file_info.ident);
+	printf("  %-16s %hd\n", "ELF:", file_info.elf);
+	printf("  %-16s %hd\n", "DWARF:", file_info.dwarf);
 
 	return (DM_OK);
 }
@@ -357,6 +370,9 @@ main(int argc, char **argv)
 
 	/* start at .text */
 	dm_seek(dm_find_section(".text"));
+
+	printf("%s\n", banner);
+	dm_cmd_info(NULL);
 
 	dm_interp();
 

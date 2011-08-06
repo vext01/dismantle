@@ -90,8 +90,6 @@ dm_parse_dwarf()
 	Dwarf_Ptr			errarg = 0;
 	int				ret = DM_FAIL;
 
-	printf("%-40s", "Parsing dwarf symbols...");
-
 	if (dwarf_init(fileno(file_info.fptr), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
 		printf("Can't parse ");
@@ -110,11 +108,6 @@ dm_parse_dwarf()
 
 	ret = DM_OK;
 error:
-	if (ret == DM_OK)
-		printf("[OK]\n");
-	else
-		printf("[ERR]\n");
-
 	return (ret);
 }
 

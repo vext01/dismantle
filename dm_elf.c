@@ -285,8 +285,6 @@ dm_parse_pht()
 	struct dm_pht_type		*pht_t;
 	struct dm_pht_cache_entry	*rec;
 
-	printf("%-40s", "Parsing program header table...");
-
 	if (elf == NULL)
 		goto clean;
 
@@ -321,7 +319,6 @@ dm_parse_pht()
 		SIMPLEQ_INSERT_TAIL(&pht_cache, rec, entries);
 	}
 
-	printf("[OK]\n");
 	ret = DM_OK;
 clean:
 	return (ret);
