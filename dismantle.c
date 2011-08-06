@@ -15,6 +15,7 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -27,6 +28,8 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
+char				 *debug_names[] = {
+				    "error", "warn", "info", "debug"};
 
 char *banner =
 "        	       ___                            __  __   \n"
@@ -40,6 +43,7 @@ char *banner =
 "        	  (c) Edd Barrett 2011	<vext01@gmail.com>\n"
 "        	  (c) Ed Robbins 2011	<edd.robbins@gmail.com>\n";
 
+int				 dm_debug = DM_D_WARN;
 struct stat			 bin_stat;
 struct dm_file_info		file_info;
 
@@ -331,7 +335,7 @@ dm_open_file(char *path)
 	file_info.name = path;
 
 	if ((file_info.fptr = fopen(path, "r")) == NULL) {
-		perror("open");
+		DPRINTF(DM_D_ERROR, "Failed to open '%s': %s", path, strerror(errno));
 		return (DM_FAIL);
 	}
 

@@ -21,7 +21,30 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "dm_elf.h"
+
+/* simple debug facility (originally from HGD code) */
+
+extern int			 dm_debug;
+extern char			*debug_names[];
+#define DM_D_ERROR		0
+#define DM_D_WARN		1
+#define DM_D_INFO		2
+#define DM_D_DEBUG		3
+
+#define DPRINTF(level, x...)						\
+	do {								\
+		if (level <= dm_debug) {				\
+			fprintf(stderr, "[%s - %08d %s:%s():%d]\n\t",	\
+			    debug_names[level], getpid(),		\
+			    __FILE__, __func__, __LINE__);		\
+			fprintf(stderr, x);				\
+			fprintf(stderr, "\n");				\
+		}							\
+	} while (0)
 
 struct dm_file_info {
 	char		*name;
