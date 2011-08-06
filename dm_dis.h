@@ -22,11 +22,14 @@
 
 extern ud_t ud;
 extern NADDR cur_addr;
+extern uint8_t bits;
 
 int dm_seek(NADDR addr);
 int dm_cmd_seek(char **args);
 int dm_disasm_op(NADDR addr);
 int dm_cmd_dis(char **args);
 int dm_cmd_dis_noargs(char **args);
+int dm_cmd_bits(char **args);
+int dm_cmd_bits_noargs(char **args);
 
 #endif

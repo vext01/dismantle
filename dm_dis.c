@@ -20,6 +20,7 @@
 
 ud_t ud;
 NADDR cur_addr;
+uint8_t bits = 64;
 
 int
 dm_seek(NADDR addr)
@@ -149,4 +150,30 @@ dm_cmd_dis_noargs(char **args)
 
 	dm_cmd_dis(&arg);
 	return (0);
+}
+
+/*
+ * set bits to 32 or 64
+ */
+int
+dm_cmd_bits(char **args)
+{
+	uint8_t			b = atoi(args[0]);
+
+	if ((b != 32) && (b != 64)) {
+		printf("Say whaaaaat? 32 or 64\n");
+		return (DM_FAIL);
+	}
+
+	bits = b;
+	return (DM_OK);
+}
+
+int
+dm_cmd_bits_noargs(char **args)
+{
+	(void) args;
+
+	printf("  %d\n", bits);
+	return (DM_OK);
 }

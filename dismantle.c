@@ -47,6 +47,8 @@ struct dm_cmd_sw {
 	uint8_t			 args;
 	int			(*handler)(char **args);
 } dm_cmds[] = {
+	{"bits", 1, dm_cmd_bits},
+	{"bits", 0, dm_cmd_bits_noargs},
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
@@ -68,6 +70,7 @@ struct dm_help_rec {
 	char		*cmd;
 	char		*descr;
 } help_recs[] = {
+	{"bits [set_to]",	"Get/set architecture (32 or 64)\n"},
 	{"seek/s addr",		"Seek to an address"},
 	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
 	{"funcs/f",		"Show functions from dwarf data"},
