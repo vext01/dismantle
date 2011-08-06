@@ -65,19 +65,30 @@ dm_cmd_dwarf_funcs(char **args)
 {
 
 	struct dm_dwarf_sym_cache_entry		*sym;
+	int					n = 0;
 
 	(void) args;
 
+	printf("\n");
 	RB_FOREACH(sym, dm_dwarf_sym_cache_, &dm_dwarf_sym_cache) {
+
+		/* reprint headers evert 20 lines */
+		if (n % 20 == 0) {
+			printf("%s\n", DM_RULE);
+			printf("%-40s | %-10s | %-10s\n", "Function", "Virtual", "Offset");
+			printf("%s\n", DM_RULE);
+		}
+
 		if (!sym->offset_err)
-			printf("  Virtual: " ADDR_FMT_64
-			    "   Offset: " ADDR_FMT_64 ":   %s()\n",
-			    sym->vaddr, sym->offset, sym->name);
+			printf("%-40s | " ADDR_FMT_64 " | " ADDR_FMT_64 "\n",
+			    sym->name, sym->vaddr, sym->offset);
 		else
-			printf("  Virtual: " ADDR_FMT_64
-			    "   Offset: %-10s:   %s()\n", sym->vaddr, "???", sym->name);
+			printf("%-40s | " ADDR_FMT_64 " | %s\n",
+			    sym->name, sym->vaddr, "???");
+		n++;
 	}
 
+	printf("%s\n\n", DM_RULE);
 	return (DM_OK);
 }
 
