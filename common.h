@@ -24,6 +24,8 @@
 #include "dm_elf.h"
 
 struct dm_file_info {
+	char		*name;
+	char		*ident;
 	FILE		*fptr;
 	uint8_t		elf;
 	uint8_t		dwarf;

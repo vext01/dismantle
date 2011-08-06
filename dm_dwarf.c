@@ -98,6 +98,8 @@ dm_parse_dwarf()
 		goto error;
 	}
 
+	file_info.dwarf = 1;
+
 	if (dm_dwarf_recurse_cu(dbg) != DM_OK)
 		goto error;
 

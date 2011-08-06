@@ -118,7 +118,6 @@ dm_init_elf()
 	Elf_Kind		 ek;
 	GElf_Ehdr		 ehdr;
 	int			 nbits;
-	char			*ident;
 
 	SIMPLEQ_INIT(&pht_cache);
 
@@ -148,10 +147,13 @@ dm_init_elf()
 		if ((nbits = gelf_getclass(elf)) == ELFCLASSNONE)
 			fprintf(stderr, "%s\n", elf_errmsg(-1));
 
-		file_info.bits = nbits;
+		if (nbits == ELFCLASS32)
+			file_info.bits = 32;
+		else
+			file_info.bits = 64;
 	}
 
-	if ((ident = elf_getident(elf, NULL)) == NULL)
+	if ((file_info.ident = elf_getident(elf, NULL)) == NULL)
 		fprintf(stderr, "%s\n", elf_errmsg(-1));
 
 	return (DM_OK);

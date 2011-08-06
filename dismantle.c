@@ -39,6 +39,7 @@ int	dm_dump_hex(size_t bytes);
 int	dm_cmd_hex(char **args);
 int	dm_cmd_hex_noargs(char **args);
 int	dm_cmd_findstr(char **args);
+int	dm_cmd_info(char **args);
 
 
 struct dm_cmd_sw {
@@ -57,6 +58,7 @@ struct dm_cmd_sw {
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
 	{"hex", 0, dm_cmd_hex_noargs},  {"px", 0, dm_cmd_hex_noargs},
 	{"hex", 1, dm_cmd_hex},         {"px", 1, dm_cmd_hex},
+	{"info", 0, dm_cmd_info},	{"i", 0, dm_cmd_info},
 	{"offset", 1, dm_cmd_offset},
 	{"pht", 0, dm_cmd_pht},
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
@@ -78,6 +80,7 @@ struct dm_help_rec {
 	{"funcs/f",		"Show functions from dwarf data"},
 	{"help/?",		"Show this help"},
 	{"hex/px [len]",        "Dump hex (64 or 'len' bytes)"},
+	{"info/i",		"Show file information"},
 	{"pht",			"Show program header table"},
 	{"seek/s addr",		"Seek to an address"},
 	{"sht",			"Show section header table"},
@@ -173,6 +176,21 @@ dm_cmd_hex_noargs(char **args)
 {
 	(void) args;
 	dm_dump_hex(64);
+	return (DM_OK);
+}
+
+int
+dm_cmd_info(char **args)
+{
+	(void) args;
+
+	printf("  %-30s %s\n", "Filename:", file_info.name);
+	printf("  %-30s %llu\n", "Size:", file_info.stat.st_size);
+	printf("  %-30s %hd\n", "Bits:", file_info.bits);
+	printf("  %-30s %s\n", "Ident:", file_info.ident);
+	printf("  %-30s %hd\n", "ELF:", file_info.elf);
+	printf("  %-30s %hd\n", "DWARF:", file_info.dwarf);
+
 	return (DM_OK);
 }
 
@@ -301,6 +319,7 @@ dm_open_file(char *path)
 {
 	memset(&file_info, 0, sizeof(file_info));
 	file_info.bits = 64; /* we guess */
+	file_info.name = path;
 
 	if ((file_info.fptr = fopen(path, "r")) == NULL) {
 		perror("open");
