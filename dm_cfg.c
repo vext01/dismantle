@@ -223,7 +223,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 	unsigned int		read = 0, oldRead = 0;
 	char			*hex;
 	struct dm_cfg_node	*foundNode = NULL;
-	long int		target = 0;
+	NADDR			target = 0;
 
 	dm_seek(node->start);
 	while (1) {
@@ -256,7 +256,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			    + 1, sizeof(void*));
 
 			/* Get the target of the jump instruction */
-			target = dm_get_jump_target();
+			target = dm_get_jump_target(ud);
 
 			/* Check if we are jumping to the start of an already
 			 * existing block, if so use that as child of current

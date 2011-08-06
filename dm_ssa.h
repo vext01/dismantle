@@ -30,6 +30,7 @@ struct dm_ssa_index {
 	int			  pn_count;
 };
 
+void	dm_place_phi_functions();
 void	dm_ssa_find_var_defs();
 void	dm_ssa_index_init();
 int	dm_cmd_ssa(char **args);

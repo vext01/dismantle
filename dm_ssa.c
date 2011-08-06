@@ -47,6 +47,8 @@ dm_cmd_ssa(char **args)
 	/* Build lists of variables defined in each node */
 	dm_ssa_find_var_defs();
 
+	dm_place_phi_functions();
+
         /* Display dominator tree */
         dm_graph_dom();
 
@@ -99,6 +101,7 @@ dm_place_phi_functions()
 		W = memcpy(indices[i].def_nodes, W, indices[i].dn_count *
 		    sizeof(void*));
 		w_size = indices[i].dn_count;
+		printf("Left in worklist: %d\n", w_size);
 		while (w_size) {
 			n = W[w_size - 1];
 			W = realloc(W, --w_size * sizeof(void*));
