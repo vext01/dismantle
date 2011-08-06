@@ -157,19 +157,19 @@ dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 			return (DM_FAIL);
 		}
 
-		dm_dwarf_recurse_die(dbg, cu_die, 0);
+		dm_dwarf_recurse_die(dbg, cu_die);
 		dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 	}
 }
 
 int
-dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
+dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die)
 {
 	int			res = DW_DLV_ERROR;
 	Dwarf_Die		cur_die = in_die, child = 0, sib_die = 0;
 	Dwarf_Error		error;
 
-	dm_dwarf_inspect_die(dbg, in_die,in_level);
+	dm_dwarf_inspect_die(dbg, in_die);
 
 	for (;;) {
 		sib_die = 0;
@@ -181,7 +181,7 @@ dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 		}
 
 		if (res == DW_DLV_OK)
-			dm_dwarf_recurse_die(dbg, child, in_level + 1);
+			dm_dwarf_recurse_die(dbg, child);
 
 		res = dwarf_siblingof(dbg, cur_die, &sib_die, &error);
 		if (res == DW_DLV_ERROR) {
@@ -196,14 +196,14 @@ dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 			dwarf_dealloc(dbg, cur_die, DW_DLA_DIE);
 
 		cur_die = sib_die;
-		dm_dwarf_inspect_die(dbg, cur_die, in_level);
+		dm_dwarf_inspect_die(dbg, cur_die);
 	}
 
 	return (DM_OK);
 }
 
 int
-dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
+dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me)
 {
 	char				*name = 0;
 	Dwarf_Error			 error = 0;
@@ -277,7 +277,8 @@ dm_clean_dwarf()
 {
 	struct dm_dwarf_sym_cache_entry		*var, *nxt;
 
-	for (var = RB_MIN(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache); var != NULL; var = nxt) {
+	for (var = RB_MIN(dm_dwarf_sym_cache_,
+		    &dm_dwarf_sym_cache); var != NULL; var = nxt) {
 		nxt = RB_NEXT(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
 		RB_REMOVE(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
 		free(var->name);
