@@ -11,6 +11,5 @@
 
 =============================================================================
 
-This is just a bit of fun to help me understand the ELF binary format.
-If you find it useful, great! Type '?' on the dismantle prompt for help.
-
+We just started hacking and this happened. A small binary file browser and
+disassembler (x86/64).
