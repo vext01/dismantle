@@ -1,8 +1,26 @@
+/*
+ * Copyright (c) 2011, Edd Barrett <vext01@gmail.com>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+
 #include "dm_dis.h"
 #include "dm_dwarf.h"
 
-ud_t ud;
-NADDR cur_addr;
+ud_t			ud;
+NADDR			cur_addr;
+uint8_t			bits = 64;
 
 int
 dm_seek(NADDR addr)
@@ -48,6 +66,7 @@ dm_disasm_op(NADDR addr)
 {
 	unsigned int		 read;
 	char			*hex;
+	NADDR			 target = 0;
 
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
@@ -56,7 +75,50 @@ dm_disasm_op(NADDR addr)
 	}
 
 	hex = ud_insn_hex(&ud);
-	printf("  " NADDR_FMT ":  %-20s%s\n", addr, hex, ud_insn_asm(&ud));
+
+	printf("  " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
+
+	if (ud.mnemonic == UD_Icall) {
+
+		switch (ud.operand[0].size) {
+		case 8:
+			if (ud.br_far)
+				target = ud.operand[0].lval.ubyte;
+			else
+				target = ud.pc + ud.operand[0].lval.sbyte;
+			break;
+		case 16:
+			if (ud.br_far)
+				target = ud.operand[0].lval.uword;
+			else
+				target = ud.pc + ud.operand[0].lval.sword;
+			break;
+		case 32:
+			if (ud.br_far)
+				target = ud.operand[0].lval.udword;
+			else
+				target = ud.pc + ud.operand[0].lval.sdword;
+			break;
+		case 64:
+			if (ud.br_far)
+				target = ud.operand[0].lval.uqword;
+			else
+				target = ud.pc + ud.operand[0].lval.sqword;
+			break;
+		default:
+			fprintf(stderr, "unknown operand size");
+		}
+
+		/* if the target was a symbol we know, then say so */
+		struct dm_dwarf_sym_cache_entry			*sym;
+		if (dm_dwarf_find_sym_at_offset(target, &sym) == DM_OK) {
+			printf("\t(%s)", sym->name);
+
+		}
+	}
+
+	printf("\n");
+
 
 	return (addr + read);
 }
@@ -90,6 +152,7 @@ dm_cmd_dis_noargs(char **args)
 	return (0);
 }
 
+
 long int
 dm_get_jump_target()
 {
@@ -105,5 +168,31 @@ dm_get_jump_target()
 		default:
 			return (long int)ud.operand[0].lval.sqword + ud.pc;
 	}
+}
+
+/*
+ * set bits to 32 or 64
+ */
+int
+dm_cmd_bits(char **args)
+{
+	uint8_t			b = atoi(args[0]);
+
+	if ((b != 32) && (b != 64)) {
+		printf("Say whaaaaat? 32 or 64\n");
+		return (DM_FAIL);
+	}
+
+	bits = b;
+	return (DM_OK);
+}
+
+int
+dm_cmd_bits_noargs(char **args)
+{
+	(void) args;
+
+	printf("  %d\n", bits);
+	return (DM_OK);
 }
 

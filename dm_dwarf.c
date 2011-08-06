@@ -1,10 +1,12 @@
 /*
-  Copyright (c) 2011 Edd Barrett. All rights reserved.
+ * Copyright (c) 2011 Edd Barrett <vext01@gmail.com>
+ *
+ * This code was based upon the simplereader.c example distrubuted with
+ * dwarfutils. The original copyright and license follows.
+ */
 
-  This code was based upon the simplereader.c example distrubuted with
-  dwarfutils. The original copyright and license follows.
-
-  Copyright (c) 2009-2010	David Anderson.	All rights reserved.
+/*
+  Copyright (c) 2009-2010 David Anderson. All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
@@ -76,7 +78,7 @@ dm_cmd_dwarf_funcs(char **args)
 			    "   Offset: %-10s:   %s()\n", sym->vaddr, "???", sym->name);
 	}
 
-	return (DM_OK); /* XXX */
+	return (DM_OK);
 }
 
 int
@@ -86,20 +88,21 @@ dm_parse_dwarf()
 	Dwarf_Error			error;
 	Dwarf_Handler			errhand = 0;
 	Dwarf_Ptr			errarg = 0;
-	int				ret = DM_OK;
+	int				ret = DM_FAIL;
 
 	printf("%-40s", "Parsing dwarf symbols...");
 
 	if (dwarf_init(fileno(f), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
-		printf("Giving up, cannot do DWARF processing\n");
+		printf("Can't parse ");
 		goto error;
 	}
 
-	dm_dwarf_recurse_cu(dbg);
+	if (dm_dwarf_recurse_cu(dbg) != DM_OK)
+		goto error;
 
 	if (dwarf_finish(dbg,&error) != DW_DLV_OK) {
-		fprintf(stderr, "dwarf_finish failed!\n");
+		fprintf(stderr, "failed to clean up ");
 		goto error;
 	}
 
@@ -113,7 +116,7 @@ error:
 	return (ret);
 }
 
-void
+int
 dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 {
 	Dwarf_Unsigned		cu_header_length = 0;
@@ -135,55 +138,55 @@ dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 		    &next_cu_header, &error);
 
 		if (res == DW_DLV_ERROR) {
-			printf("Error in dwarf_next_cu_header\n");
-			exit(1);
+			printf("dwarf_next_cu_header ");
+			return (DM_FAIL);
 		}
 
 		if (res == DW_DLV_NO_ENTRY)
-			return; /* done */
+			return (DM_OK); /* done */
 
 		/* The CU will have a single sibling, a cu_die. */
 		res = dwarf_siblingof(dbg,no_die,&cu_die,&error);
 		if (res == DW_DLV_ERROR) {
-			printf("Error in dwarf_siblingof on CU die \n");
-			exit(1);
+			printf("dwarf_siblingof ");
+			return (DM_FAIL);
 		}
 
 		if (res == DW_DLV_NO_ENTRY) { /* Impossible case. */
-			printf("no entry! in dwarf_siblingof on CU die \n");
-			exit(1);
+			printf("impossible error ");
+			return (DM_FAIL);
 		}
 
-		dm_dwarf_recurse_die(dbg, cu_die, 0);
+		dm_dwarf_recurse_die(dbg, cu_die);
 		dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 	}
 }
 
-void
-dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
+int
+dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die)
 {
 	int			res = DW_DLV_ERROR;
 	Dwarf_Die		cur_die = in_die, child = 0, sib_die = 0;
 	Dwarf_Error		error;
 
-	dm_dwarf_inspect_die(dbg, in_die,in_level);
+	dm_dwarf_inspect_die(dbg, in_die);
 
 	for (;;) {
 		sib_die = 0;
 
 		res = dwarf_child(cur_die,&child,&error);
 		if (res == DW_DLV_ERROR) {
-			printf("Error in dwarf_child, level %d\n",in_level);
-			exit(1);
+			printf("dwarf_child ");
+			return (DM_FAIL);
 		}
 
 		if (res == DW_DLV_OK)
-			dm_dwarf_recurse_die(dbg, child, in_level + 1);
+			dm_dwarf_recurse_die(dbg, child);
 
 		res = dwarf_siblingof(dbg, cur_die, &sib_die, &error);
 		if (res == DW_DLV_ERROR) {
-			printf("Error in dwarf_siblingof, level %d\n",in_level);
-			exit(1);
+			printf("dwarf_siblingof ");
+			return (DM_FAIL);
 		}
 
 		if (res == DW_DLV_NO_ENTRY)
@@ -193,14 +196,14 @@ dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die,int in_level)
 			dwarf_dealloc(dbg, cur_die, DW_DLA_DIE);
 
 		cur_die = sib_die;
-		dm_dwarf_inspect_die(dbg, cur_die, in_level);
+		dm_dwarf_inspect_die(dbg, cur_die);
 	}
 
-	return;
+	return (DM_OK);
 }
 
 int
-dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
+dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me)
 {
 	char				*name = 0;
 	Dwarf_Error			 error = 0;
@@ -215,7 +218,7 @@ dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
 	res = dwarf_diename(print_me,&name,&error);
 
 	if (res == DW_DLV_ERROR) {
-		printf("Error in dwarf_diename , level %d \n", level);
+		printf("dwarf_diename ");
 		goto clean;
 	}
 
@@ -225,7 +228,7 @@ dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
 
 	res = dwarf_tag(print_me, &tag, &error);
 	if (res != DW_DLV_OK) {
-		fprintf(stderr, "Error in dwarf_tag , level %d \n", level);
+		printf("dwarf_tag ");
 		goto clean;
 	}
 
@@ -237,16 +240,16 @@ dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me, int level)
 	/* get virtual addr */
 	res = dwarf_lowpc(print_me, &lo, &error);
 	if (res != DW_DLV_OK) {
-		fprintf(stderr, "Failed to dwarf_lopc()");
+		printf("dwarf_lopc ");
 		if (res == DW_DLV_NO_ENTRY)
-			fprintf(stderr, "no entry\n");
+			printf("no entry ");
 		goto clean;
 	}
 
 	/* get the function name */
 	res = dwarf_get_TAG_name(tag, &tagname);
 	if (res != DW_DLV_OK) {
-		fprintf(stderr, "Failed to dwarf_get_TAG_name");
+		printf("dwarf_get_TAG_name ");
 		goto clean;
 	}
 
@@ -274,7 +277,8 @@ dm_clean_dwarf()
 {
 	struct dm_dwarf_sym_cache_entry		*var, *nxt;
 
-	for (var = RB_MIN(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache); var != NULL; var = nxt) {
+	for (var = RB_MIN(dm_dwarf_sym_cache_,
+		    &dm_dwarf_sym_cache); var != NULL; var = nxt) {
 		nxt = RB_NEXT(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
 		RB_REMOVE(dm_dwarf_sym_cache_, &dm_dwarf_sym_cache, var);
 		free(var->name);
@@ -298,4 +302,21 @@ dm_dwarf_find_sym(char *name, struct dm_dwarf_sym_cache_entry **s)
 	/* found */
 	*s = res;
 	return (DM_OK);
+}
+
+int
+dm_dwarf_find_sym_at_offset(ADDR64 off, struct dm_dwarf_sym_cache_entry **ent)
+{
+	struct dm_dwarf_sym_cache_entry		*e;
+
+	/* rbtree is keyed by symname, so we must iterate */
+	RB_FOREACH(e, dm_dwarf_sym_cache_, &dm_dwarf_sym_cache) {
+		if (e->offset == off) {
+			*ent = e;
+			return (DM_OK);
+		}
+	}
+
+	return (DM_FAIL);
+
 }

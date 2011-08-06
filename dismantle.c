@@ -47,20 +47,22 @@ struct dm_cmd_sw {
 	uint8_t			 args;
 	int			(*handler)(char **args);
 } dm_cmds[] = {
-	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
-	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
-	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
-	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
-	{"offset", 1, dm_cmd_offset},
-	{"ssa", 0, dm_cmd_ssa},
+	{"bits", 0, dm_cmd_bits_noargs},
+	{"bits", 1, dm_cmd_bits},
 	{"cfg", 0, dm_cmd_cfg},
+	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
+	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dom", 0, dm_cmd_dom},
-	{"pht", 0, dm_cmd_pht},
-	{"sht", 0, dm_cmd_sht},
-	{"hex", 1, dm_cmd_hex},         {"px", 1, dm_cmd_hex},
 	{"findstr", 1, dm_cmd_findstr}, {"/", 1, dm_cmd_findstr},
-	{"hex", 0, dm_cmd_hex_noargs},  {"px", 0, dm_cmd_hex_noargs},
+	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
+	{"hex", 0, dm_cmd_hex_noargs},  {"px", 0, dm_cmd_hex_noargs},
+	{"hex", 1, dm_cmd_hex},         {"px", 1, dm_cmd_hex},
+	{"offset", 1, dm_cmd_offset},
+	{"pht", 0, dm_cmd_pht},
+	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
+	{"sht", 0, dm_cmd_sht},
+	{"ssa", 0, dm_cmd_ssa},
 	{NULL, 0, NULL}
 };
 
@@ -68,19 +70,19 @@ struct dm_help_rec {
 	char		*cmd;
 	char		*descr;
 } help_recs[] = {
-	{"seek/s addr",		"Seek to an address"},
+	{"/ str",               "Find ASCII string from current pos"},
+	{"CTRL+D",		"Exit"},
+	{"bits [set_to]",	"Get/set architecture (32 or 64)\n"},
+	{"cfg",			"Show static CFG for current function"},
 	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"dom",			"Show dominance tree and frontiers of cur func"},
 	{"funcs/f",		"Show functions from dwarf data"},
+	{"help/?",		"Show this help"},
 	{"hex/px [len]",        "Dump hex (64 or 'len' bytes)"},
 	{"pht",			"Show program header table"},
+	{"seek/s addr",		"Seek to an address"},
 	{"sht",			"Show section header table"},
-	{"/ str",               "Find ASCII string from current pos"},
-	{"cfg",			"Output static CFG for current function"},
-	{"dom",			"Output dominance tree and frontier sets for"
-				    "current function"},
 	{"ssa",			"Output SSA form of current function"},
-	{"help/?",		"Show this help"},
-	{"CTRL+D",		"Exit"},
 	{NULL, 0},
 };
 
@@ -289,6 +291,7 @@ dm_interp()
 			add_history(line);
 			dm_parse_cmd(line);
 		}
+		free(line); /* XXX not sure, roll with this for now */
 		dm_update_prompt();
 	}
 	printf("\n");
