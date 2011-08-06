@@ -57,6 +57,8 @@ int	dm_cmd_hex(char **args);
 int	dm_cmd_hex_noargs(char **args);
 int	dm_cmd_findstr(char **args);
 int	dm_cmd_info(char **args);
+int	dm_cmd_debug(char **args);
+int	dm_cmd_debug_noargs(char **args);
 
 struct dm_cmd_sw {
 	char			*cmd;
@@ -66,6 +68,8 @@ struct dm_cmd_sw {
 	{"bits", 0, dm_cmd_bits_noargs},
 	{"bits", 1, dm_cmd_bits},
 	{"cfg", 0, dm_cmd_cfg},
+	{"debug", 0, dm_cmd_debug_noargs},
+	{"debug", 1, dm_cmd_debug},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dom", 0, dm_cmd_dom},
@@ -91,6 +95,7 @@ struct dm_help_rec {
 	{"  CTRL+D",		"Exit"},
 	{"  bits [set_to]",	"Get/set architecture (32 or 64)"},
 	{"  cfg",		"Show static CFG for current function"},
+	{"  debug [level]",	"Get/set debug level (0-3)"},
 	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
 	{"  dom",		"Show dominance tree and frontiers of cur func"},
 	{"  funcs/f",		"Show functions from dwarf data"},
@@ -386,4 +391,28 @@ clean:
 		fclose(file_info.fptr);
 
 	return (EXIT_SUCCESS);
+}
+
+int
+dm_cmd_debug(char **args)
+{
+	int		lvl = atoi(args[0]);
+
+	if ((lvl < 0) || (lvl > 3)) {
+		DPRINTF(DM_D_ERROR, "Debug level is between 0 and 3");
+		return (DM_FAIL);
+	}
+
+	dm_debug = lvl;
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_debug_noargs(char **args)
+{
+	(void) args;
+
+	printf("\n  %d (%s)\n\n", dm_debug, debug_names[dm_debug]);
+	return (DM_OK);
 }
