@@ -294,6 +294,7 @@ dm_interp()
 		free(line); /* XXX not sure, roll with this for now */
 		dm_update_prompt();
 	}
+	printf("\n");
 }
 
 int

@@ -22,6 +22,7 @@
 /* Head of the list and a list iterator */
 struct ptrs	*p_head = NULL;
 struct ptrs	*p = NULL;
+struct ptrs	*p_iter = NULL;
 
 /* Explicitly record the list length */
 int		p_length = 0;
@@ -138,8 +139,32 @@ dm_instruction_se_init()
 	instructions[UD_Ijg].write = 0;
 	instructions[UD_Ijg].jump = 2;
 
+	instructions[UD_Ijae].write = 0;
+	instructions[UD_Ijae].jump = 2;
+
 	instructions[UD_Ijle].write = 0;
 	instructions[UD_Ijle].jump = 2;
+
+	instructions[UD_Ijl].write = 0;
+	instructions[UD_Ijl].jump = 2;
+
+	instructions[UD_Ija].write = 0;
+	instructions[UD_Ija].jump = 2;
+
+	instructions[UD_Ijb].write = 0;
+	instructions[UD_Ijb].jump = 2;
+
+	instructions[UD_Ijbe].write = 0;
+	instructions[UD_Ijbe].jump = 2;
+
+	instructions[UD_Ijcxz].write = 0;
+        instructions[UD_Ijcxz].jump = 2;
+
+	instructions[UD_Ijnp].write = 0;
+	instructions[UD_Ijnp].jump = 2;
+
+	instructions[UD_Ijge].write = 0;
+	instructions[UD_Ijge].jump = 2;
 
 	instructions[UD_Icall].write = 0;
 	instructions[UD_Icall].jump = 0;
@@ -163,8 +188,12 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->pre = 0;
 	node->rpost = 0;
 	node->idom = NULL;
-	node->dom_frontiers = NULL;
+	node->df_set = NULL;
 	node->df_count = 0;
+	node->def_vars = NULL;
+	node->dv_count = 0;
+	node->phi_vars = NULL;
+	node->pv_count = 0;
 
 	/* Add node to the free list so we can free the memory at the end */
 	p->ptr = (void*)node;
@@ -194,6 +223,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 	unsigned int		read = 0, oldRead = 0;
 	char			*hex;
 	struct dm_cfg_node	*foundNode = NULL;
+	NADDR			target = 0;
 
 	dm_seek(node->start);
 	while (1) {
@@ -225,11 +255,14 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			node->children = calloc(instructions[ud.mnemonic].jump
 			    + 1, sizeof(void*));
 
+			/* Get the target of the jump instruction */
+			target = dm_get_jump_target(ud);
+
 			/* Check if we are jumping to the start of an already
 			 * existing block, if so use that as child of current
 			 * block */
-			if ((foundNode = dm_find_cfg_node_starting(
-			   ud.operand[0].lval.sdword + addr + read)) != NULL) {
+			if ((foundNode = dm_find_cfg_node_starting(target))
+			    != NULL) {
 				node->children[0] = foundNode;
 				dm_add_parent(foundNode, node);
 			}
@@ -237,15 +270,19 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			 * existing block, if so split it and use 2nd half as
 			 * child of current block */
 			else if ((foundNode = dm_find_cfg_node_containing(
-			   ud.operand[0].lval.sdword + addr + read)) != NULL) {
-				node->children[0] = foundNode;
-				dm_add_parent(foundNode, node);
+			    target)) != NULL) {
+				/*
+				 * We found a matching block. Now find address
+				 * before addr and split the block
+				 */
+				node->children[0] = dm_split_cfg_block(
+				    foundNode, target);
+				dm_add_parent(node->children[0], node);
 			}
 			/* This is a new block, so scan with a recursive call
 			 * to find it's start, end, and children */
 			else {
-				node->children[0] = dm_new_cfg_node(
-				   ud.operand[0].lval.sdword + addr + read, 0);
+				node->children[0] = dm_new_cfg_node(target, 0);
 				dm_add_parent(node->children[0], node);
 				dm_gen_cfg_block(node->children[0]);
 			}
@@ -254,20 +291,30 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			dm_seek(addr);
 			read = ud_disassemble(&ud);
 
+			/* Check whether there was some sneaky splitting of the
+			 * block we're working on while we were away! */
+			if (node->end < addr) {
+				/* Now we must find the right block to continue
+				 * from */
+				foundNode = dm_find_cfg_node_ending(addr);
+				if (foundNode != NULL) {
+					node = foundNode;
+				}
+			}
+
 			/*
 			 * If the jump was a conditional, now we must
 			 * follow the other leg of the jump
 			 */
 			if (instructions[ud.mnemonic].jump > 1) {
 				if ((node->children[1] =
-				    dm_find_cfg_node_starting(addr + read))
-				    != NULL) {
+				    dm_find_cfg_node_starting(ud.pc)) != NULL) {
 					dm_add_parent(node->children[1], node);
 					break;
 				}
 				else {
 					node->children[1] =
-					    dm_new_cfg_node(addr + read, 0);
+					    dm_new_cfg_node(ud.pc, 0);
 					dm_add_parent(node->children[1], node);
 					node = node->children[1];
 				}
@@ -284,6 +331,46 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 	return node;
 }
 
+struct dm_cfg_node *
+dm_split_cfg_block(struct dm_cfg_node *node, NADDR addr)
+{
+	struct dm_cfg_node *tail = NULL;
+	NADDR addr2 = node->start;
+	unsigned int read = 0;
+	int i = 0, j = 0;
+
+	/* Tail node runs from split address to end of original node */
+	tail = dm_new_cfg_node(addr, node->end);
+	free(tail->children);
+
+	/* Tail node must pick up original nodes children */
+	tail->children = node->children;
+
+	/* First parent of tail node is the head node */
+	dm_add_parent(tail, node);
+
+	/* Find address of instruction before the split (end of head node) */
+	for (dm_seek(node->start); addr2 + read < addr; addr2 += read)
+		read = ud_disassemble(&ud);
+
+	node->end = addr2 - read;
+
+	/* Head has only one child - the tail node */
+	node->children = calloc(2, sizeof(void*));
+	node->children[0] = tail;
+
+	/* We must find all children of the original node and change the
+	 * parents entry that pointed to the original node to point to the
+	 * new tail node */
+	for (i = 0; tail->children[i] != NULL; i++)
+		for (j = 0; j < tail->children[i]->p_count; j++)
+			if (tail->children[i]->parents[j] == node) {
+				tail->children[i]->parents[j] = node;
+			}
+	/* Finally, return the new tail node*/
+	return tail;
+}
+
 /*
  * Searches all blocks for one starting with addr, and returns it if found
  * (otherwise returns NULL)
@@ -291,10 +378,10 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 struct dm_cfg_node *
 dm_find_cfg_node_starting(NADDR addr)
 {
-	struct dm_cfg_node		*node;
+	struct dm_cfg_node	*node;
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
-		node = (struct dm_cfg_node*)(p->ptr);
+	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+		node = (struct dm_cfg_node*)(p_iter->ptr);
 		if (node->start == addr)
 			return node;
 	}
@@ -303,41 +390,38 @@ dm_find_cfg_node_starting(NADDR addr)
 }
 
 /*
- * Searches all blocks to see if one contains addr. If so,
- * split the block and return the tail (otherwise returns NULL)
+ * Searches all blocks for one ending with addr, and returns it if found
+ * (otherwise returns NULL)
+ */
+struct dm_cfg_node *
+dm_find_cfg_node_ending(NADDR addr)
+{
+	struct dm_cfg_node	*node;
+
+	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+		node = (struct dm_cfg_node*)(p_iter->ptr);
+		if (node->end == addr)
+			return (node);
+	}
+	return (NULL);
+}
+
+/*
+ * Searches all blocks to see if one contains addr and returns it if found
+ * (otherwise returns NULL)
  */
 struct dm_cfg_node *
 dm_find_cfg_node_containing(NADDR addr)
 {
-	struct dm_cfg_node		*node, *newNode;
-	NADDR				addr2;
-	unsigned int			read = 0;
+	struct dm_cfg_node		*node;
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
 
-		node = (struct dm_cfg_node*) (p->ptr);
+		node = (struct dm_cfg_node*) (p_iter->ptr);
 
-		if ((node->start > addr) &&
-		    (node->end != 0) && (node->end < addr)) {
-
-			/*
-			 * We found a matching block. Now find address before
-			 * addr and split the block, return tail block
-			 */
-			printf("Found a block needed splitting\n");
-			for (dm_seek(node->start);
-			    addr2 + read != addr; addr2 += read)
-				read = ud_disassemble(&ud);
-
-			newNode = dm_new_cfg_node(addr, node->end);
-			newNode->children = node->children;
-			dm_add_parent(newNode, node);
-
-			node->children = calloc(2, sizeof(void*));
-			node->children[0] = newNode;
-			node->end = addr2;
-
-			return (newNode);
+		if ((node->start < addr) &&
+		    (node->end != 0) && (node->end > addr)) {
+			return node;
 		}
 	}
 	return (NULL);
