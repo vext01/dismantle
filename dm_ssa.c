@@ -26,7 +26,8 @@ struct dm_ssa_index		*indices = NULL;
 int
 dm_cmd_ssa(char **args)
 {
-	struct dm_cfg_node      *cfg = NULL;
+	struct dm_cfg_node      *cfg = NULL, *node = NULL;
+	int			i = 0;
 	(void) args;
 
 	/* Initialise structures */
@@ -49,8 +50,16 @@ dm_cmd_ssa(char **args)
 
 	dm_place_phi_functions();
 
+	for (p = p_head; p->ptr != NULL; p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		printf("Node %d phi nodes for", node->post);
+		for (i = 0; i < node->pv_count; i++) {
+			printf(" %d", (int)node->phi_vars[i]);
+		}
+		printf("\n");
+	}
         /* Display dominator tree */
-        dm_graph_dom();
+        //dm_graph_dom();
 
         /* Free dominance frontier sets */
         dm_dom_frontiers_free();
@@ -92,28 +101,27 @@ dm_cmd_ssa(char **args)
 void
 dm_place_phi_functions()
 {
-	struct dm_cfg_node	**W, *n, *dn;
+	struct dm_cfg_node	**W = NULL, *n = NULL, *dn = NULL;
 	unsigned int		  i = 0;
 	int			  j = 0, k = 0;
 	int			  w_size = 0, duplicate = 0;
 	for (i = 0; i < UD_OP_CONST + 1; i++) {
+		free(W);
 		W = malloc(indices[i].dn_count * sizeof(void*));
-		W = memcpy(indices[i].def_nodes, W, indices[i].dn_count *
-		    sizeof(void*));
+		/*W = memcpy(indices[i].def_nodes, W, indices[i].dn_count *
+		    sizeof(void*));*/
+		for (j = 0; j < indices[i].dn_count; j++)
+			W[j] = indices[i].def_nodes[j];
 		w_size = indices[i].dn_count;
-		printf("Left in worklist: %d\n", w_size);
+		printf("Left in worklist: %d\r", w_size);
 		while (w_size) {
 			n = W[w_size - 1];
 			W = realloc(W, --w_size * sizeof(void*));
+			if (n != NULL)
 			for (j = 0; j < n->df_count; j++) {
 				dn = (struct dm_cfg_node*)n->df_set[j];
-				duplicate = 0;
-				for (k = 0; k < indices[i].pn_count; k++)
-					if (indices[i].phi_nodes[k] == dn) {
-						duplicate = 1;
-						break;
-					}
-				if (!duplicate) {
+				if (!dm_array_contains(indices[i].phi_nodes,
+				    indices[i].pn_count, dn)) {
 					indices[i].phi_nodes =
 					    realloc(indices[i].phi_nodes,
 					    ++indices[i].pn_count *
@@ -132,24 +140,29 @@ dm_place_phi_functions()
 					    ++dn->pv_count * sizeof(int));
 					dn->phi_vars[dn->pv_count - 1] = i;
 				}
-				duplicate = 0;
-				for (k = 0; k < w_size; k++)
-					if (W[k] == dn) {
-						duplicate = 1;
-						break;
-					}
-				if (!duplicate) {
+				if ((!dm_array_contains(W, w_size, dn)) && (dn != n)) {
 					W = realloc(W, ++w_size *
 					    sizeof(void*));
 					W[w_size - 1] = dn;
 				}
 			}
+			else
+				printf("n is NULL!!!\n");
 		}
 	}
+	printf("\n");
 }
 
-//void
-//dm_array_contains(void* list, int count, void term
+int
+dm_array_contains(struct dm_cfg_node **list, int count, struct dm_cfg_node *term)
+{
+	int i = 0;
+	for (i = 0; i < count; i++) {
+		if (list[i] == term)
+			return DM_OK;
+	}
+	return DM_FAIL;
+}
 
 void
 dm_ssa_find_var_defs()
