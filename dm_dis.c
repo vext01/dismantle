@@ -20,14 +20,13 @@
 
 ud_t			ud;
 NADDR			cur_addr;
-uint8_t			bits = 64;
 
 int
 dm_seek(NADDR addr)
 {
 	cur_addr = addr;
 
-	if (fseek(f, cur_addr, SEEK_SET) < 0) {
+	if (fseek(file_info.fptr, cur_addr, SEEK_SET) < 0) {
 		perror("seek");
 		return (-1);
 	}
@@ -68,6 +67,7 @@ dm_disasm_op(NADDR addr)
 	unsigned int				 read;
 	char					*hex;
 	NADDR					 target = 0;
+	uint8_t					 colour_set = 0;
 
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
@@ -76,6 +76,17 @@ dm_disasm_op(NADDR addr)
 	}
 
 	hex = ud_insn_hex(&ud);
+
+	/* colourise control flow */
+	if ((ud.br_far) || (ud.br_near)) {
+		/* jumps and calls are yellow */
+		printf(ANSII_YELLOW);
+		colour_set = 1;
+	} else if ((ud.mnemonic == UD_Iret) || (ud.mnemonic == UD_Iretf)) {
+		/* returns are red */
+		printf(ANSII_RED);
+		colour_set = 1;
+	}
 
 	printf("  " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
 
@@ -88,8 +99,10 @@ dm_disasm_op(NADDR addr)
 		}
 	}
 
-	printf("\n");
+	if (colour_set) /* reset colour */
+		printf(ANSII_WHITE);
 
+	printf("\n");
 
 	return (addr + read);
 }
@@ -172,7 +185,9 @@ dm_cmd_bits(char **args)
 		return (DM_FAIL);
 	}
 
-	bits = b;
+	file_info.bits = b;
+	ud_set_mode(&ud, b);
+
 	return (DM_OK);
 }
 
@@ -181,7 +196,8 @@ dm_cmd_bits_noargs(char **args)
 {
 	(void) args;
 
-	printf("  %d\n", bits);
+	printf("  %d\n", file_info.bits);
 	return (DM_OK);
 }
+
 

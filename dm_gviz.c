@@ -42,9 +42,16 @@ void dm_end_graph(FILE *fp)
 	fclose(fp);
 }
 
-void dm_display_graph(char *filename)
+void
+dm_display_graph(char *filename)
 {
 	char *sys_buf = NULL;
+
+	char		*disp = getenv("DISPLAY");
+
+	if (!disp)
+		return;
+
 	if (asprintf(&sys_buf, "dot -Txlib %s &", filename) != -1)
 		system(sys_buf);
 }

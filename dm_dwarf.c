@@ -65,19 +65,30 @@ dm_cmd_dwarf_funcs(char **args)
 {
 
 	struct dm_dwarf_sym_cache_entry		*sym;
+	int					n = 0;
 
 	(void) args;
 
+	printf("\n");
 	RB_FOREACH(sym, dm_dwarf_sym_cache_, &dm_dwarf_sym_cache) {
+
+		/* reprint headers evert 20 lines */
+		if (n % 20 == 0) {
+			printf("%s\n", DM_RULE);
+			printf("%-40s | %-10s | %-10s\n", "Function", "Virtual", "Offset");
+			printf("%s\n", DM_RULE);
+		}
+
 		if (!sym->offset_err)
-			printf("  Virtual: " ADDR_FMT_64
-			    "   Offset: " ADDR_FMT_64 ":   %s()\n",
-			    sym->vaddr, sym->offset, sym->name);
+			printf("%-40s | " ADDR_FMT_64 " | " ADDR_FMT_64 "\n",
+			    sym->name, sym->vaddr, sym->offset);
 		else
-			printf("  Virtual: " ADDR_FMT_64
-			    "   Offset: %-10s:   %s()\n", sym->vaddr, "???", sym->name);
+			printf("%-40s | " ADDR_FMT_64 " | %s\n",
+			    sym->name, sym->vaddr, "???");
+		n++;
 	}
 
+	printf("%s\n\n", DM_RULE);
 	return (DM_OK);
 }
 
@@ -90,29 +101,24 @@ dm_parse_dwarf()
 	Dwarf_Ptr			errarg = 0;
 	int				ret = DM_FAIL;
 
-	printf("%-40s", "Parsing dwarf symbols...");
-
-	if (dwarf_init(fileno(f), DW_DLC_READ, errhand,
+	if (dwarf_init(fileno(file_info.fptr), DW_DLC_READ, errhand,
 		    errarg, &dbg, &error) != DW_DLV_OK) {
-		printf("Can't parse ");
+		DPRINTF(DM_D_DEBUG, "Can't parse dwarf info. Probably none.");
 		goto error;
 	}
+
+	file_info.dwarf = 1;
 
 	if (dm_dwarf_recurse_cu(dbg) != DM_OK)
 		goto error;
 
 	if (dwarf_finish(dbg,&error) != DW_DLV_OK) {
-		fprintf(stderr, "failed to clean up ");
+		DPRINTF(DM_D_WARN, "Failed to clean up");
 		goto error;
 	}
 
 	ret = DM_OK;
 error:
-	if (ret == DM_OK)
-		printf("[OK]\n");
-	else
-		printf("[ERR]\n");
-
 	return (ret);
 }
 
@@ -138,7 +144,7 @@ dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 		    &next_cu_header, &error);
 
 		if (res == DW_DLV_ERROR) {
-			printf("dwarf_next_cu_header ");
+			DPRINTF(DM_D_DEBUG, "dwarf_next_cu_header failed");
 			return (DM_FAIL);
 		}
 
@@ -146,14 +152,14 @@ dm_dwarf_recurse_cu(Dwarf_Debug dbg)
 			return (DM_OK); /* done */
 
 		/* The CU will have a single sibling, a cu_die. */
-		res = dwarf_siblingof(dbg,no_die,&cu_die,&error);
+		res = dwarf_siblingof(dbg, no_die, &cu_die, &error);
 		if (res == DW_DLV_ERROR) {
-			printf("dwarf_siblingof ");
+			DPRINTF(DM_D_DEBUG, "siblingof failed");
 			return (DM_FAIL);
 		}
 
 		if (res == DW_DLV_NO_ENTRY) { /* Impossible case. */
-			printf("impossible error ");
+			DPRINTF(DM_D_WARN, "impossible case");
 			return (DM_FAIL);
 		}
 
@@ -176,7 +182,7 @@ dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die)
 
 		res = dwarf_child(cur_die,&child,&error);
 		if (res == DW_DLV_ERROR) {
-			printf("dwarf_child ");
+			DPRINTF(DM_D_DEBUG, "dwarf_child");
 			return (DM_FAIL);
 		}
 
@@ -185,7 +191,7 @@ dm_dwarf_recurse_die(Dwarf_Debug dbg, Dwarf_Die in_die)
 
 		res = dwarf_siblingof(dbg, cur_die, &sib_die, &error);
 		if (res == DW_DLV_ERROR) {
-			printf("dwarf_siblingof ");
+			DPRINTF(DM_D_DEBUG, "siblingof");
 			return (DM_FAIL);
 		}
 
@@ -215,20 +221,18 @@ dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me)
 	int				 offset_err = 0, ret = DM_FAIL;
 	struct dm_dwarf_sym_cache_entry	*sym_rec;
 
-	res = dwarf_diename(print_me,&name,&error);
-
+	res = dwarf_diename(print_me, &name, &error);
 	if (res == DW_DLV_ERROR) {
-		printf("dwarf_diename ");
+		DPRINTF(DM_D_DEBUG, "diename");
 		goto clean;
 	}
 
-	if (res == DW_DLV_NO_ENTRY) {
+	if (res == DW_DLV_NO_ENTRY)
 		goto clean;
-	}
 
 	res = dwarf_tag(print_me, &tag, &error);
 	if (res != DW_DLV_OK) {
-		printf("dwarf_tag ");
+		DPRINTF(DM_D_DEBUG, "dwarf_tag");
 		goto clean;
 	}
 
@@ -240,16 +244,16 @@ dm_dwarf_inspect_die(Dwarf_Debug dbg, Dwarf_Die print_me)
 	/* get virtual addr */
 	res = dwarf_lowpc(print_me, &lo, &error);
 	if (res != DW_DLV_OK) {
-		printf("dwarf_lopc ");
+		DPRINTF(DM_D_DEBUG, "lopc");
 		if (res == DW_DLV_NO_ENTRY)
-			printf("no entry ");
+			DPRINTF(DM_D_DEBUG, "no_entry");
 		goto clean;
 	}
 
 	/* get the function name */
 	res = dwarf_get_TAG_name(tag, &tagname);
 	if (res != DW_DLV_OK) {
-		printf("dwarf_get_TAG_name ");
+		DPRINTF(DM_D_DEBUG, "TAG_name");
 		goto clean;
 	}
 

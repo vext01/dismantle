@@ -15,6 +15,7 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -27,9 +28,26 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
-FILE		*f;
-struct stat	bin_stat;
+uint8_t				 colours_on = 1;
 
+char				 *debug_names[] = {
+				    "error", "warn", "info", "debug"};
+
+char *banner =
+"        	       ___                            __  __   \n"
+"         	  ____/ (_)________ ___  ____ _____  / /_/ /__ \n"
+"        	 / __  / / ___/ __ `__ \\/ __ `/ __ \\/ __/ / _ \\\n"
+"        	/ /_/ / (__  ) / / / / / /_/ / / / / /_/ /  __/\n"
+"        	\\__,_/_/____/_/ /_/ /_/\\__,_/_/ /_/\\__/_/\\___/ \n"
+"\n"
+"        	      Small i386/amd64 binary browser\n"
+"\n"
+"        	  (c) Edd Barrett 2011	<vext01@gmail.com>\n"
+"        	  (c) Ed Robbins 2011	<edd.robbins@gmail.com>\n";
+
+int				 dm_debug = DM_D_WARN;
+struct stat			 bin_stat;
+struct dm_file_info		file_info;
 
 int	dm_cmd_help();
 void	dm_parse_cmd(char *line);
@@ -40,7 +58,9 @@ int	dm_dump_hex(size_t bytes);
 int	dm_cmd_hex(char **args);
 int	dm_cmd_hex_noargs(char **args);
 int	dm_cmd_findstr(char **args);
-
+int	dm_cmd_info(char **args);
+int	dm_cmd_debug(char **args);
+int	dm_cmd_debug_noargs(char **args);
 
 struct dm_cmd_sw {
 	char			*cmd;
@@ -50,6 +70,8 @@ struct dm_cmd_sw {
 	{"bits", 0, dm_cmd_bits_noargs},
 	{"bits", 1, dm_cmd_bits},
 	{"cfg", 0, dm_cmd_cfg},
+	{"debug", 0, dm_cmd_debug_noargs},
+	{"debug", 1, dm_cmd_debug},
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dom", 0, dm_cmd_dom},
@@ -58,6 +80,7 @@ struct dm_cmd_sw {
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
 	{"hex", 0, dm_cmd_hex_noargs},  {"px", 0, dm_cmd_hex_noargs},
 	{"hex", 1, dm_cmd_hex},         {"px", 1, dm_cmd_hex},
+	{"info", 0, dm_cmd_info},	{"i", 0, dm_cmd_info},
 	{"offset", 1, dm_cmd_offset},
 	{"pht", 0, dm_cmd_pht},
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
@@ -70,19 +93,21 @@ struct dm_help_rec {
 	char		*cmd;
 	char		*descr;
 } help_recs[] = {
-	{"/ str",               "Find ASCII string from current pos"},
-	{"CTRL+D",		"Exit"},
-	{"bits [set_to]",	"Get/set architecture (32 or 64)\n"},
-	{"cfg",			"Show static CFG for current function"},
-	{"dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
-	{"dom",			"Show dominance tree and frontiers of cur func"},
-	{"funcs/f",		"Show functions from dwarf data"},
-	{"help/?",		"Show this help"},
-	{"hex/px [len]",        "Dump hex (64 or 'len' bytes)"},
-	{"pht",			"Show program header table"},
-	{"seek/s addr",		"Seek to an address"},
-	{"sht",			"Show section header table"},
-	{"ssa",			"Output SSA form of current function"},
+	{"  / str",		"Find ASCII string from current pos"},
+	{"  CTRL+D",		"Exit"},
+	{"  bits [set_to]",	"Get/set architecture (32 or 64)"},
+	{"  cfg",		"Show static CFG for current function"},
+	{"  debug [level]",	"Get/set debug level (0-3)"},
+	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"  dom",		"Show dominance tree and frontiers of cur func"},
+	{"  funcs/f",		"Show functions from dwarf data"},
+	{"  help/?",		"Show this help"},
+	{"  hex/px [len]",	"Dump hex (64 or 'len' bytes)"},
+	{"  info/i",		"Show file information"},
+	{"  pht",		"Show program header table"},
+	{"  seek/s addr",	"Seek to an address"},
+	{"  sht",		"Show section header table"},
+	{"  ssa",		"Output SSA form of current function"},
 	{NULL, 0},
 };
 
@@ -131,7 +156,7 @@ dm_dump_hex_pretty(uint8_t *buf, size_t sz, NADDR start_addr)
 int
 dm_dump_hex(size_t bytes)
 {
-	size_t		orig_pos = ftell(f);
+	size_t		orig_pos = ftell(file_info.fptr);
 	size_t		done = 0, read = 0, to_read = DM_HEX_CHUNK;
 	uint8_t		buf[DM_HEX_CHUNK];
 
@@ -140,24 +165,24 @@ dm_dump_hex(size_t bytes)
 		if (DM_HEX_CHUNK > bytes - done)
 			to_read = bytes - done;
 
-		read = fread(buf, 1, to_read, f);
+		read = fread(buf, 1, to_read, file_info.fptr);
 
-		if ((!read) && (ferror(f))) {
+		if ((!read) && (ferror(file_info.fptr))) {
 			perror("failed to read bytes");
-			clearerr(f);
+			clearerr(file_info.fptr);
 			return (DM_FAIL);
 		}
 		dm_dump_hex_pretty(buf, read, orig_pos + done);
 
-		if ((!read) && (feof(f)))
+		if ((!read) && (feof(file_info.fptr)))
 			break;
 	}
-	printf("\n");
 
-	if (fseek(f, orig_pos, SEEK_SET) < 0) {
+	if (fseek(file_info.fptr, orig_pos, SEEK_SET) < 0) {
 		perror("could not seek file");
 		return (DM_FAIL);
 	}
+	printf("\n");
 
 	return (DM_OK);
 }
@@ -178,12 +203,27 @@ dm_cmd_hex_noargs(char **args)
 }
 
 int
+dm_cmd_info(char **args)
+{
+	(void) args;
+
+	printf("  %-16s %s\n", "Filename:", file_info.name);
+	printf("  %-16s %llu\n", "Size:", file_info.stat.st_size);
+	printf("  %-16s %hd\n", "Bits:", file_info.bits);
+	printf("  %-16s %s\n", "Ident:", file_info.ident);
+	printf("  %-16s %hd\n", "ELF:", file_info.elf);
+	printf("  %-16s %hd\n", "DWARF:", file_info.dwarf);
+
+	return (DM_OK);
+}
+
+int
 dm_cmd_findstr(char **args)
 {
 	NADDR                    byte = 0;
 	char                    *find = args[0], *cmp = NULL;
 	size_t                   find_len = strlen(find);
-	size_t                   orig_pos = ftell(f), read;
+	size_t                   orig_pos = ftell(file_info.fptr), read;
 	int                      ret = DM_FAIL;
 	int                      hit = 0;
 
@@ -192,23 +232,17 @@ dm_cmd_findstr(char **args)
 		goto clean;
 	}
 
-	rewind(f);
+	rewind(file_info.fptr);
 
 	cmp = malloc(find_len);
 	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
 
-#if 0
-		printf("\r" NADDR_FMT "/" NADDR_FMT " (% 3d%%)", byte,
-			(NADDR) (bin_stat.st_size - find_len),
-			(byte / (float) (bin_stat.st_size - find_len) * 100));
-#endif
-
-		if (fseek(f, byte, SEEK_SET))
+		if (fseek(file_info.fptr, byte, SEEK_SET))
 			perror("fseek");
 
-		read = fread(cmp, 1, find_len, f);
+		read = fread(cmp, 1, find_len, file_info.fptr);
 		if (!read) {
-			if (feof(f))
+			if (feof(file_info.fptr))
 				break;
 			perror("could not read file");
 			goto clean;
@@ -223,10 +257,9 @@ clean:
 	if (cmp)
 		free(cmp);
 
-	if (fseek(f, orig_pos, SEEK_SET))
+	if (fseek(file_info.fptr, orig_pos, SEEK_SET))
 		perror("fseek");
 
-	printf("\n");
 	return (DM_OK);
 }
 
@@ -236,12 +269,10 @@ dm_cmd_help()
 {
 	struct dm_help_rec	*h = help_recs;
 
-	printf("\n");
 	while (h->cmd != 0) {
 		printf("%-15s   %s\n", h->cmd, h->descr);
 		h++;
 	}
-	printf("\n");
 
 	return (DM_OK);
 }
@@ -298,6 +329,26 @@ dm_interp()
 }
 
 int
+dm_open_file(char *path)
+{
+	memset(&file_info, 0, sizeof(file_info));
+	file_info.bits = 64; /* we guess */
+	file_info.name = path;
+
+	if ((file_info.fptr = fopen(path, "r")) == NULL) {
+		DPRINTF(DM_D_ERROR, "Failed to open '%s': %s", path, strerror(errno));
+		return (DM_FAIL);
+	}
+
+	if (fstat(fileno(file_info.fptr), &file_info.stat) < 0) {
+		perror("fstat");
+		return (DM_FAIL);
+	}
+
+	return (DM_OK);
+}
+
+int
 main(int argc, char **argv)
 {
 	if (argc != 2) {
@@ -305,35 +356,59 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	if ((f = fopen(argv[1], "r")) == NULL) {
-		perror("open");
-		exit(1);
-	}
-
-	if (fstat(fileno(f), &bin_stat) < 0) {
-		perror("fstat");
-		exit(1);
-	}
+	if(dm_open_file(argv[1]) != DM_OK)
+		goto clean;
 
 	/* parse elf and dwarf junk */
 	dm_init_elf();
 	dm_parse_pht();
 	dm_parse_dwarf();
-	/* XXX sht cache */
 
 	ud_init(&ud);
-	ud_set_input_file(&ud, f);
-	ud_set_mode(&ud, 64);
+	ud_set_input_file(&ud, file_info.fptr);
+	ud_set_mode(&ud, file_info.bits);
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
 	/* start at .text */
 	dm_seek(dm_find_section(".text"));
 
+	printf("%s\n", banner);
+	dm_cmd_info(NULL);
+	printf("\n");
+
 	dm_interp();
 
 	/* clean up */
+clean:
 	dm_clean_elf();
 	dm_clean_dwarf();
 
+	if (file_info.fptr != NULL)
+		fclose(file_info.fptr);
+
 	return (EXIT_SUCCESS);
+}
+
+int
+dm_cmd_debug(char **args)
+{
+	int		lvl = atoi(args[0]);
+
+	if ((lvl < 0) || (lvl > 3)) {
+		DPRINTF(DM_D_ERROR, "Debug level is between 0 and 3");
+		return (DM_FAIL);
+	}
+
+	dm_debug = lvl;
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_debug_noargs(char **args)
+{
+	(void) args;
+
+	printf("\n  %d (%s)\n\n", dm_debug, debug_names[dm_debug]);
+	return (DM_OK);
 }
