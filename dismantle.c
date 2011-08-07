@@ -61,12 +61,15 @@ int	dm_cmd_findstr(char **args);
 int	dm_cmd_info(char **args);
 int	dm_cmd_debug(char **args);
 int	dm_cmd_debug_noargs(char **args);
+int	dm_cmd_ansii_noargs(char **args);
+int	dm_cmd_ansii(char **args);
 
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
 	int			(*handler)(char **args);
 } dm_cmds[] = {
+	{"ansii", 0, dm_cmd_ansii_noargs}, {"ansii", 1, dm_cmd_ansii},
 	{"bits", 0, dm_cmd_bits_noargs},
 	{"bits", 1, dm_cmd_bits},
 	{"cfg", 0, dm_cmd_cfg},
@@ -96,6 +99,7 @@ struct dm_help_rec {
 } help_recs[] = {
 	{"  / str",		"Find ASCII string from current pos"},
 	{"  CTRL+D",		"Exit"},
+	{"  ansii",		"Get/set ANSII colours setting"},
 	{"  bits [set_to]",	"Get/set architecture (32 or 64)"},
 	{"  cfg",		"Show static CFG for current function"},
 	{"  debug [level]",	"Get/set debug level (0-3)"},
@@ -415,4 +419,21 @@ dm_cmd_debug_noargs(char **args)
 	return (DM_OK);
 }
 
+int
+dm_cmd_ansii(char **args)
+{
+	colours_on = atoi(args[0]);
 
+	if (colours_on > 1)
+		colours_on = 1;
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_ansii_noargs(char **args)
+{
+	(void) args;
+	printf("\n  %d\n\n", colours_on);
+	return (DM_OK);
+}
