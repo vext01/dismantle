@@ -26,8 +26,14 @@
 
 #include "dm_elf.h"
 
-/* simple debug facility (originally from HGD code) */
+/* ANSII colours */
+extern uint8_t			colours_on;
+#define ANSII_YELLOW            (colours_on ? "\033[33m" : "")
+#define ANSII_RED               (colours_on ? "\033[31m" : "")
+#define ANSII_GREEN             (colours_on ? "\033[32m" : "")
+#define ANSII_WHITE             (colours_on ? "\033[0m" : "")
 
+/* simple debug facility (originally from HGD code) */
 extern int			 dm_debug;
 extern char			*debug_names[];
 #define DM_D_ERROR		0

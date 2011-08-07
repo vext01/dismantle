@@ -67,6 +67,7 @@ dm_disasm_op(NADDR addr)
 	unsigned int				 read;
 	char					*hex;
 	NADDR					 target = 0;
+	uint8_t					 colour_set = 0;
 
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
@@ -75,6 +76,17 @@ dm_disasm_op(NADDR addr)
 	}
 
 	hex = ud_insn_hex(&ud);
+
+	/* colourise control flow */
+	if ((ud.br_far) || (ud.br_near)) {
+		/* jumps and calls are yellow */
+		printf(ANSII_YELLOW);
+		colour_set = 1;
+	} else if ((ud.mnemonic == UD_Iret) || (ud.mnemonic == UD_Iretf)) {
+		/* returns are red */
+		printf(ANSII_RED);
+		colour_set = 1;
+	}
 
 	printf("  " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
 
@@ -87,8 +99,10 @@ dm_disasm_op(NADDR addr)
 		}
 	}
 
-	printf("\n");
+	if (colour_set) /* reset colour */
+		printf(ANSII_WHITE);
 
+	printf("\n");
 
 	return (addr + read);
 }

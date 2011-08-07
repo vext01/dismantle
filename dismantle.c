@@ -28,6 +28,8 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
+uint8_t				 colours_on = 1;
+
 char				 *debug_names[] = {
 				    "error", "warn", "info", "debug"};
 
