@@ -75,6 +75,7 @@ struct dm_cmd_sw {
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dom", 0, dm_cmd_dom},
+	{"disf", 0, dm_cmd_dis_func},	{"pdf", 0, dm_cmd_dis_func},
 	{"findstr", 1, dm_cmd_findstr}, {"/", 1, dm_cmd_findstr},
 	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
@@ -99,6 +100,7 @@ struct dm_help_rec {
 	{"  cfg",		"Show static CFG for current function"},
 	{"  debug [level]",	"Get/set debug level (0-3)"},
 	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"  disf/pdf",		"Disassemble function (up until the next RET"},
 	{"  dom",		"Show dominance tree and frontiers of cur func"},
 	{"  funcs/f",		"Show functions from dwarf data"},
 	{"  help/?",		"Show this help"},
@@ -412,3 +414,5 @@ dm_cmd_debug_noargs(char **args)
 	printf("\n  %d (%s)\n\n", dm_debug, debug_names[dm_debug]);
 	return (DM_OK);
 }
+
+

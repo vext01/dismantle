@@ -131,6 +131,25 @@ dm_cmd_dis(char **args)
 }
 
 int
+dm_cmd_dis_func(char **args)
+{
+	NADDR	addr = cur_addr;
+
+	(void) args;
+
+	printf("\n");
+	do {
+		addr = dm_disasm_op(addr);
+		if (!addr)
+			break;
+	} while (ud.mnemonic != UD_Iret);
+	printf("\n");
+
+	dm_seek(cur_addr); /* rewind back */
+	return (DM_OK);
+}
+
+int
 dm_cmd_dis_noargs(char **args)
 {
 	(void) args;
