@@ -46,7 +46,6 @@ char *banner =
 "        	  (c) Ed Robbins 2011	<edd.robbins@gmail.com>\n";
 
 int				 dm_debug = DM_D_WARN;
-struct stat			 bin_stat;
 struct dm_file_info		file_info;
 
 int	dm_cmd_help();
@@ -223,6 +222,7 @@ dm_cmd_info(char **args)
 	return (DM_OK);
 }
 
+/* XXX when we have more search funcs, move into dm_search.c */
 int
 dm_cmd_findstr(char **args)
 {
@@ -233,7 +233,7 @@ dm_cmd_findstr(char **args)
 	int                      ret = DM_FAIL;
 	int                      hit = 0;
 
-	if (bin_stat.st_size < (off_t) find_len) {
+	if (file_info.stat.st_size < (off_t) find_len) {
 		fprintf(stderr, "file not big enough for that string\n");
 		goto clean;
 	}
@@ -241,7 +241,7 @@ dm_cmd_findstr(char **args)
 	rewind(file_info.fptr);
 
 	cmp = malloc(find_len);
-	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
+	for (byte = 0; byte < file_info.stat.st_size - find_len; byte++) {
 
 		if (fseek(file_info.fptr, byte, SEEK_SET))
 			perror("fseek");
