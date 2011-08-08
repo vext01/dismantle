@@ -358,7 +358,7 @@ void
 dm_show_version()
 {
 	printf("%s\n", banner);
-	printf("Version: " PACKAGE_VERSION "\n");
+	printf("%-32s%s\n\n", "", "Version: " PACKAGE_VERSION);
 }
 
 void
@@ -430,7 +430,7 @@ main(int argc, char **argv)
 	/* start at .text */
 	dm_seek(dm_find_section(".text"));
 
-	printf("%s\n", banner);
+	dm_show_version();
 	dm_cmd_info(NULL);
 	printf("\n");
 
