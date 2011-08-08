@@ -103,7 +103,7 @@ struct dm_help_rec {
 	{"  cfg",		"Show static CFG for current function"},
 	{"  debug [level]",	"Get/set debug level (0-3)"},
 	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
-	{"  disf/pdf",		"Disassemble function (up until the next RET"},
+	{"  disf/pdf",		"Disassemble function (up until the next RET)"},
 	{"  dom",		"Show dominance tree and frontiers of cur func"},
 	{"  funcs/f",		"Show functions from dwarf data"},
 	{"  help/?",		"Show this help"},
@@ -328,7 +328,7 @@ dm_interp()
 			add_history(line);
 			dm_parse_cmd(line);
 		}
-		free(line); /* XXX not sure, roll with this for now */
+		free(line);
 		dm_update_prompt();
 	}
 	printf("\n");
@@ -354,15 +354,67 @@ dm_open_file(char *path)
 	return (DM_OK);
 }
 
+void
+dm_show_version()
+{
+	printf("%s\n", banner);
+	printf("Version: " PACKAGE_VERSION "\n");
+}
+
+void
+usage()
+{
+	printf("Usage: dismantle [args] <elf binary>\n\n");
+	printf("  Arguments:\n");
+	printf("    -a         Disable ANSII colours\n");
+	printf("    -x lvl     Set debug level to 'lvl'\n");
+	printf("    -v         Show version and exit\n\n");
+}
+
 int
 main(int argc, char **argv)
 {
-	if (argc != 2) {
-		printf("Usage: dismantle <elf binary>\n");
-		exit(1);
+	int			ch, getopt_err = 0, getopt_exit = 0;
+
+	while ((ch = getopt(argc, argv, "ahx:v")) != -1) {
+		switch (ch) {
+		case 'a':
+			colours_on = 0;
+			break;
+		case 'x':
+			dm_debug = atoi(optarg);
+			if ((dm_debug < 0) || (dm_debug > 3))
+				getopt_err = 0;
+			break;
+		case 'v':
+			dm_show_version();
+			getopt_exit = 1;
+		case 'h':
+			getopt_exit = 1;
+			break;
+		default:
+			getopt_err = 1;
+		}
 	}
 
-	if(dm_open_file(argv[1]) != DM_OK)
+	/* command line args were bogus or we just need to exit */
+	if ((getopt_err)  || (getopt_exit)) {
+		if (getopt_err)
+			DPRINTF(DM_D_ERROR, "Bogus usage!\n");
+
+		usage();
+		goto clean;
+	}
+
+	/* check a binary was supplied */
+	if (argc == optind) {
+		DPRINTF(DM_D_ERROR, "Missing filename\n");
+		usage();
+		goto clean;
+	}
+
+	/* From here on, cmd line was A-OK */
+	if (dm_open_file(argv[optind]) != DM_OK)
 		goto clean;
 
 	/* parse elf and dwarf junk */
