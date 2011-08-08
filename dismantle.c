@@ -428,7 +428,10 @@ main(int argc, char **argv)
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
 	/* start at .text */
-	dm_seek(dm_find_section(".text"));
+	if (file_info.elf)
+		dm_seek(dm_find_section(".text"));
+	else
+		dm_seek(0);
 
 	dm_show_version();
 	dm_cmd_info(NULL);
