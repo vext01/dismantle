@@ -46,7 +46,6 @@ char *banner =
 "        	  (c) Ed Robbins 2011	<edd.robbins@gmail.com>\n";
 
 int				 dm_debug = DM_D_WARN;
-struct stat			 bin_stat;
 struct dm_file_info		file_info;
 
 int	dm_cmd_help();
@@ -61,12 +60,15 @@ int	dm_cmd_findstr(char **args);
 int	dm_cmd_info(char **args);
 int	dm_cmd_debug(char **args);
 int	dm_cmd_debug_noargs(char **args);
+int	dm_cmd_ansii_noargs(char **args);
+int	dm_cmd_ansii(char **args);
 
 struct dm_cmd_sw {
 	char			*cmd;
 	uint8_t			 args;
 	int			(*handler)(char **args);
 } dm_cmds[] = {
+	{"ansii", 0, dm_cmd_ansii_noargs}, {"ansii", 1, dm_cmd_ansii},
 	{"bits", 0, dm_cmd_bits_noargs},
 	{"bits", 1, dm_cmd_bits},
 	{"cfg", 0, dm_cmd_cfg},
@@ -75,6 +77,7 @@ struct dm_cmd_sw {
 	{"dis", 0, dm_cmd_dis_noargs},	{"pd", 0, dm_cmd_dis_noargs},
 	{"dis", 1, dm_cmd_dis},		{"pd", 1, dm_cmd_dis},
 	{"dom", 0, dm_cmd_dom},
+	{"disf", 0, dm_cmd_dis_func},	{"pdf", 0, dm_cmd_dis_func},
 	{"findstr", 1, dm_cmd_findstr}, {"/", 1, dm_cmd_findstr},
 	{"funcs", 0, dm_cmd_dwarf_funcs}, {"f", 0, dm_cmd_dwarf_funcs},
 	{"help", 0, dm_cmd_help},	{"?", 0, dm_cmd_help},
@@ -95,10 +98,12 @@ struct dm_help_rec {
 } help_recs[] = {
 	{"  / str",		"Find ASCII string from current pos"},
 	{"  CTRL+D",		"Exit"},
+	{"  ansii",		"Get/set ANSII colours setting"},
 	{"  bits [set_to]",	"Get/set architecture (32 or 64)"},
 	{"  cfg",		"Show static CFG for current function"},
 	{"  debug [level]",	"Get/set debug level (0-3)"},
 	{"  dis/pd [ops]",	"Disassemble (8 or 'ops' operations)"},
+	{"  disf/pdf",		"Disassemble function (up until the next RET)"},
 	{"  dom",		"Show dominance tree and frontiers of cur func"},
 	{"  funcs/f",		"Show functions from dwarf data"},
 	{"  help/?",		"Show this help"},
@@ -217,6 +222,7 @@ dm_cmd_info(char **args)
 	return (DM_OK);
 }
 
+/* XXX when we have more search funcs, move into dm_search.c */
 int
 dm_cmd_findstr(char **args)
 {
@@ -227,7 +233,7 @@ dm_cmd_findstr(char **args)
 	int                      ret = DM_FAIL;
 	int                      hit = 0;
 
-	if (bin_stat.st_size < (off_t) find_len) {
+	if (file_info.stat.st_size < (off_t) find_len) {
 		fprintf(stderr, "file not big enough for that string\n");
 		goto clean;
 	}
@@ -235,7 +241,7 @@ dm_cmd_findstr(char **args)
 	rewind(file_info.fptr);
 
 	cmp = malloc(find_len);
-	for (byte = 0; byte < bin_stat.st_size - find_len; byte++) {
+	for (byte = 0; byte < file_info.stat.st_size - find_len; byte++) {
 
 		if (fseek(file_info.fptr, byte, SEEK_SET))
 			perror("fseek");
@@ -322,7 +328,7 @@ dm_interp()
 			add_history(line);
 			dm_parse_cmd(line);
 		}
-		free(line); /* XXX not sure, roll with this for now */
+		free(line);
 		dm_update_prompt();
 	}
 	printf("\n");
@@ -348,15 +354,67 @@ dm_open_file(char *path)
 	return (DM_OK);
 }
 
+void
+dm_show_version()
+{
+	printf("%s\n", banner);
+	printf("%-32s%s\n\n", "", "Version: " PACKAGE_VERSION);
+}
+
+void
+usage()
+{
+	printf("Usage: dismantle [args] <elf binary>\n\n");
+	printf("  Arguments:\n");
+	printf("    -a         Disable ANSII colours\n");
+	printf("    -x lvl     Set debug level to 'lvl'\n");
+	printf("    -v         Show version and exit\n\n");
+}
+
 int
 main(int argc, char **argv)
 {
-	if (argc != 2) {
-		printf("Usage: dismantle <elf binary>\n");
-		exit(1);
+	int			ch, getopt_err = 0, getopt_exit = 0;
+
+	while ((ch = getopt(argc, argv, "ahx:v")) != -1) {
+		switch (ch) {
+		case 'a':
+			colours_on = 0;
+			break;
+		case 'x':
+			dm_debug = atoi(optarg);
+			if ((dm_debug < 0) || (dm_debug > 3))
+				getopt_err = 0;
+			break;
+		case 'v':
+			dm_show_version();
+			getopt_exit = 1;
+		case 'h':
+			getopt_exit = 1;
+			break;
+		default:
+			getopt_err = 1;
+		}
 	}
 
-	if(dm_open_file(argv[1]) != DM_OK)
+	/* command line args were bogus or we just need to exit */
+	if ((getopt_err)  || (getopt_exit)) {
+		if (getopt_err)
+			DPRINTF(DM_D_ERROR, "Bogus usage!\n");
+
+		usage();
+		goto clean;
+	}
+
+	/* check a binary was supplied */
+	if (argc == optind) {
+		DPRINTF(DM_D_ERROR, "Missing filename\n");
+		usage();
+		goto clean;
+	}
+
+	/* From here on, cmd line was A-OK */
+	if (dm_open_file(argv[optind]) != DM_OK)
 		goto clean;
 
 	/* parse elf and dwarf junk */
@@ -370,9 +428,12 @@ main(int argc, char **argv)
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
 	/* start at .text */
-	dm_seek(dm_find_section(".text"));
+	if (file_info.elf)
+		dm_seek(dm_find_section(".text"));
+	else
+		dm_seek(0);
 
-	printf("%s\n", banner);
+	dm_show_version();
 	dm_cmd_info(NULL);
 	printf("\n");
 
@@ -410,5 +471,24 @@ dm_cmd_debug_noargs(char **args)
 	(void) args;
 
 	printf("\n  %d (%s)\n\n", dm_debug, debug_names[dm_debug]);
+	return (DM_OK);
+}
+
+int
+dm_cmd_ansii(char **args)
+{
+	colours_on = atoi(args[0]);
+
+	if (colours_on > 1)
+		colours_on = 1;
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_ansii_noargs(char **args)
+{
+	(void) args;
+	printf("\n  %d\n\n", colours_on);
 	return (DM_OK);
 }

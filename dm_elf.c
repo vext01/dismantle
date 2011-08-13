@@ -134,7 +134,7 @@ dm_init_elf()
 	ek = elf_kind(elf);
 
 	if (ek != ELF_K_ELF) {
-		fprintf(stderr, "Does not appear to have an ELF header\n");
+		DPRINTF(DM_D_INFO, "No ELF header present");
 		goto err;
 	}
 

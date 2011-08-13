@@ -26,6 +26,8 @@
 
 #include "dm_elf.h"
 
+#define PACKAGE_VERSION		"0.1"
+
 /* ANSII colours */
 extern uint8_t			colours_on;
 #define ANSII_YELLOW            (colours_on ? "\033[33m" : "")

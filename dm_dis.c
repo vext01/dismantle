@@ -63,7 +63,7 @@ dm_cmd_seek(char **args)
 int
 dm_disasm_op(NADDR addr)
 {
-	struct dm_dwarf_sym_cache_entry		*sym;
+	struct dm_dwarf_sym_cache_entry		*sym, *label_sym;
 	unsigned int				 read;
 	char					*hex;
 	NADDR					 target = 0;
@@ -72,8 +72,13 @@ dm_disasm_op(NADDR addr)
 	if ((read = ud_disassemble(&ud)) == 0) {
 		fprintf(stderr,
 			"failed to disassemble at " NADDR_FMT "\n", addr);
-		return (0);
+		return (DM_FAIL);
 	}
+
+	/* if we know this symbol name, print it as a label */
+	if (dm_dwarf_find_sym_at_offset(addr, &label_sym) == DM_OK)
+		printf("%s\n  %s%s():%s\n%s\n", DM_RULE, ANSII_GREEN,
+		    label_sym->name, ANSII_WHITE, DM_RULE);
 
 	hex = ud_insn_hex(&ud);
 
@@ -88,7 +93,7 @@ dm_disasm_op(NADDR addr)
 		colour_set = 1;
 	}
 
-	printf("  " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
+	printf("    " NADDR_FMT ":  %-20s%s", addr, hex, ud_insn_asm(&ud));
 
 	if (ud.mnemonic == UD_Icall) {
 		target = dm_get_jump_target(ud);
@@ -123,6 +128,25 @@ dm_cmd_dis(char **args)
 
 	dm_seek(cur_addr); /* rewind back */
 	return (0);
+}
+
+int
+dm_cmd_dis_func(char **args)
+{
+	NADDR	addr = cur_addr;
+
+	(void) args;
+
+	printf("\n");
+	do {
+		addr = dm_disasm_op(addr);
+		if (!addr)
+			break;
+	} while (ud.mnemonic != UD_Iret);
+	printf("\n");
+
+	dm_seek(cur_addr); /* rewind back */
+	return (DM_OK);
 }
 
 int
