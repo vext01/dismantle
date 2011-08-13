@@ -53,6 +53,9 @@ dm_cmd_cfg(char **args) {
 	/* Print CFG */
 	dm_print_cfg(cfg);
 
+	/* Check CFG for consistency! */
+	dm_check_cfg_consistency();
+
 	/* Free all memory */
 	dm_free_cfg();
 
@@ -82,6 +85,36 @@ dm_recover_cfg() {
 	dm_seek(addr);
 
 	return cfg;
+}
+
+void
+dm_check_cfg_consistency()
+{
+	struct dm_cfg_node *node = NULL;
+	int i = 0, j = 0, consistent = 0;
+	for (p = p_head; p->ptr != NULL; p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		for (i = 0; node->children[i] != NULL; i++) {
+			consistent = 0;
+			for (j = 0; j < node->children[i]->p_count; j++) {
+				if (node->children[i]->parents[j] == node)
+					consistent = 1;
+			}
+			if (!consistent)
+				printf("No link from node %d to parent %d!\n",
+				    node->children[i]->post, node->post);
+		}
+		for (i = 0; i < node->p_count; i++) {
+			consistent = 0;
+			for (j = 0; node->parents[i]->children[j] != NULL; j++) {
+				if (node->parents[i]->children[j] == node)
+					consistent = 1;
+			}
+			if (!consistent)
+				printf("No link from node %d to child %d!\n",
+				    node->parents[i]->post, node->post);
+		}
+	}
 }
 
 /*
@@ -192,9 +225,11 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->df_count = 0;
 	node->def_vars = NULL;
 	node->dv_count = 0;
-	node->phi_vars = NULL;
-	node->pv_count = 0;
-
+	node->phi_functions = NULL;
+	node->pf_count = 0;
+	node->instructions = NULL;
+	node->i_count = 0;
+	node->ssa_output = NULL;
 	/* Add node to the free list so we can free the memory at the end */
 	p->ptr = (void*)node;
 	p->next = calloc(1, sizeof(struct ptrs));
@@ -219,11 +254,12 @@ dm_add_parent(struct dm_cfg_node *node, struct dm_cfg_node *parent)
 struct dm_cfg_node *
 dm_gen_cfg_block(struct dm_cfg_node *node)
 {
-	NADDR			addr = node->start;
+	NADDR			addr = node->start, end = 0;
 	unsigned int		read = 0, oldRead = 0;
 	char			*hex;
 	struct dm_cfg_node	*foundNode = NULL;
 	NADDR			target = 0;
+	int			i = 0, duplicate = 0;
 
 	dm_seek(node->start);
 	while (1) {
@@ -249,6 +285,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 		if (instructions[ud.mnemonic].jump) {
 			/* End the block here */
 			node->end = addr;
+			end = addr;
 			free(node->children);
 
 			/* Make space for the children of this block */
@@ -271,13 +308,22 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			 * child of current block */
 			else if ((foundNode = dm_find_cfg_node_containing(
 			    target)) != NULL) {
-				/*
-				 * We found a matching block. Now find address
-				 * before addr and split the block
-				 */
+				/* We found a matching block. Now find address
+				 * before addr and split the block */
 				node->children[0] = dm_split_cfg_block(
 				    foundNode, target);
-				dm_add_parent(node->children[0], node);
+				/* There has to be a better way to fix this,
+				 * but I can't fully get my head around the
+				 * problem so this will do for now! */
+				duplicate = 0;
+				for (i = 0; i < node->children[0]->p_count; i++)
+					if (node->children[0]->parents[i] == node)
+						duplicate = 1;
+				if (duplicate)
+					dm_add_parent(node->children[0],
+					    node->children[0]);
+				else
+					dm_add_parent(node->children[0], node);
 			}
 			/* This is a new block, so scan with a recursive call
 			 * to find it's start, end, and children */
@@ -365,7 +411,7 @@ dm_split_cfg_block(struct dm_cfg_node *node, NADDR addr)
 	for (i = 0; tail->children[i] != NULL; i++)
 		for (j = 0; j < tail->children[i]->p_count; j++)
 			if (tail->children[i]->parents[j] == node) {
-				tail->children[i]->parents[j] = node;
+				tail->children[i]->parents[j] = tail;
 			}
 	/* Finally, return the new tail node*/
 	return tail;

@@ -13,8 +13,12 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
+#define _GNU_SOURCE
 #include "dm_ssa.h"
+#include "dm_dwarf.h"
+#include "../../udis86/libudis86/syn.c"
+#include "../../udis86/libudis86/decode.h"
+#include "../../udis86/libudis86/syn-intel.c"
 
 extern struct dm_instruction_se *instructions;
 extern struct ptrs		*p_head;
@@ -26,8 +30,8 @@ struct dm_ssa_index		*indices = NULL;
 int
 dm_cmd_ssa(char **args)
 {
-	struct dm_cfg_node      *cfg = NULL, *node = NULL;
-	int			i = 0;
+	NADDR			 addr = cur_addr;
+	struct dm_cfg_node	*cfg = NULL;
 	(void) args;
 
 	/* Initialise structures */
@@ -48,78 +52,551 @@ dm_cmd_ssa(char **args)
 	/* Build lists of variables defined in each node */
 	dm_ssa_find_var_defs();
 
+	/* Place phi functions in correct nodes */
 	dm_place_phi_functions();
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
-		node = (struct dm_cfg_node*)p->ptr;
-		printf("Node %d phi nodes for", node->post);
-		for (i = 0; i < node->pv_count; i++) {
-			printf(" %d", (int)node->phi_vars[i]);
-		}
-		printf("\n");
-	}
-        /* Display dominator tree */
-        //dm_graph_dom();
+	/* Rename all the variables with SSA indexes */
+	dm_rename_variables(cfg);
 
-        /* Free dominance frontier sets */
-        dm_dom_frontiers_free();
+	/* Print SSA version of the function */
+	dm_print_ssa();
 
-        /* Free all CFG structures */
-        dm_free_cfg();
-	/*struct		dm_ssa_index  *indices = NULL;
-	unsigned int	read;
-	char		*hex;
-	int		ops = strtoll(args[0], NULL, 0), i;
-        NADDR		addr = cur_addr;
+	/* Free dominance frontier sets */
+	dm_dom_frontiers_free();
 
-	dm_ssa_index_init(&indices);
-	dm_instruction_se_init();
+	/* Free all CFG structures */
+	dm_free_cfg();
 
-	printf("\n");
-	for (i = 0; i < ops; i++) {
-		read = ud_disassemble(&ud);
-		hex = ud_insn_hex(&ud);
+	/* Rewind back */
+	dm_seek(addr);
 
-		printf("    " NADDR_FMT ":  %-20s%s  ",
-		    addr, hex, ud_insn_asm(&ud));
-
-		addr = addr + read;
-
-		if (instructions[ud.mnemonic].write)
-			indices[ud.operand[0].base].index++;
-
-		printf("%d, ", indices[ud.operand[0].base].index);
-		printf("%d, ", indices[ud.operand[1].base].index);
-		printf("%d\n", indices[ud.operand[2].base].index);
-	}
-	*/
-	/*dm_seek(cur_addr);*/ /* rewind back */
-	/*printf("\n");*/
 	return (0);
+}
+
+/*
+ * Disassemble without translating into assembler (just decode instructions)
+ */
+unsigned int
+dm_ssa_disassemble(struct ud* u)
+{
+	if (ud_input_end(u))
+		return 0;
+
+	u->insn_buffer[0] = u->insn_hexcode[0] = 0;
+
+	if (ud_decode(u) == 0)
+		return 0;
+	return ud_insn_len(u);
+}
+
+struct ptrs* mergeSort(struct ptrs *list)
+{
+	struct ptrs *right;
+
+	if (list->next == NULL)
+	return list;
+
+	right = split(list);
+
+	return merge(mergeSort(list), mergeSort(right));
+}
+
+struct ptrs* merge(struct ptrs *left, struct ptrs *right)
+{
+	struct dm_cfg_node *left_p = NULL, *right_p = NULL;
+	if (left) left_p = (struct dm_cfg_node*)left->ptr;
+	if (right) right_p = (struct dm_cfg_node*)right->ptr;
+	if ((left == NULL) || (left_p == NULL))
+		return right;
+	else if ((right == NULL) || (right_p == NULL))
+		return left;
+	else if (left_p->start > right_p->start)
+		return merge(right, left);
+	else {
+		left->next = merge(left->next, right);
+		return left;
+	}
+}
+
+struct ptrs* split(struct ptrs *list)
+{
+	struct ptrs *right;
+
+	if ((list == NULL) || (list->next == NULL))
+		return NULL;
+
+	right = list->next;
+	list->next = right->next;
+	right->next = split(list->next);
+
+	return right;
+}
+
+void
+dm_print_ssa()
+{
+	int					 i = 0, j = 0, k = 0, duplicate = 0;
+	struct dm_cfg_node			*node = NULL;
+	struct dm_dwarf_sym_cache_entry		*sym;
+
+	/* Sort blocks in order of starting address */
+	mergeSort(p_head);
+
+	/* Print blocks in ssa assembler */
+	for (p = p_head; (p != NULL); p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		if (dm_dwarf_find_sym_at_offset(node->start, &sym) == DM_OK)
+			printf("Block %d (%s):\n", node->post, sym->name);
+		else
+			printf("Block %d:\n", node->post);
+		/* Print phi nodes */
+		for (i = 0; i < node->pf_count; i++) {
+			printf("\033[32m                                  mov %s_%d, phi(",
+			    ud_reg_tab[node->phi_functions[i].var - 1],
+			    node->phi_functions[i].index);
+			for (j = 0; j < node->phi_functions[i].arguments; j++) {
+				duplicate = 0;
+				for (k = 0; k < node->phi_functions[i].arguments; k++) {
+					if ((node->phi_functions[i].indexes[j] ==
+					    node->phi_functions[i].indexes[k]) &&
+					    (j != k) && (k > j))
+						duplicate = 1;
+				}
+				if (!duplicate) {
+					printf("%s_%d",
+					    ud_reg_tab[node->phi_functions[i].var - 1],
+					    node->phi_functions[i].indexes[j]);
+					if (j != node->phi_functions[i].arguments - 1)
+						printf(", ");
+				}
+			}
+			printf(")\033[0m\n");
+		}
+		/* Print standard instructions */
+		printf("%s", node->ssa_output);
+	}
+}
+
+void
+dm_rename_variables(struct dm_cfg_node *n)
+{
+	struct dm_dwarf_sym_cache_entry		*sym;
+	struct ptrs				*p_iter = NULL;
+	struct dm_cfg_node			*node = NULL, *found_node = NULL;
+	int					 index[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+	int					 reg = 0;
+	int					 i = 0, j = 0, k = 0i, colour_set = 0;
+	/* For each statement in node n */
+	n->ssa_output = calloc(1, sizeof(char));
+	/* Start with phi functions */
+	for (i = 0; i < n->pf_count; i++) {
+		reg = n->phi_functions[i].var;
+		indices[reg].count++;
+		dm_ssa_index_stack_push((enum ud_type)reg, indices[reg].count);
+		n->phi_functions[i].index =
+		    indices[reg].stack[indices[reg].s_size - 1];
+	}
+	/* Then normal instructions/statements */
+	for (dm_seek(n->start); ud.pc - ud_insn_len(&ud) != n->end;) {
+		dm_ssa_disassemble(&ud);
+		/* For each use of a variable, use the correct index */
+		/* Operand 0 */
+		if (ud.operand[0].type == UD_OP_MEM) {
+			reg = (int)ud.operand[0].base;
+			index[0][0] = indices[reg].stack[indices[reg].s_size - 1];
+			reg = (int)ud.operand[0].index;
+			index[0][1] = indices[reg].stack[indices[reg].s_size - 1];
+		}
+		else
+			index[0][0] = index[0][1] = -1;
+		/* Operand 1 */
+		if (ud.operand[1].type == UD_OP_MEM) {
+			reg = (int)ud.operand[1].base;
+			index[1][0] = indices[reg].stack[indices[reg].s_size -1];
+			reg = (int)ud.operand[1].index;
+			index[1][1] = indices[reg].stack[indices[reg].s_size -1];
+		}
+		else if (ud.operand[1].type == UD_OP_REG) {
+			reg = (int)ud.operand[1].base;
+			index[1][0] = indices[reg].stack[indices[reg].s_size -1];
+			index[1][1] = -1;
+		}
+		else
+			index[1][0] = index[1][1] = -1;
+		/* Operand 3 */
+		if (ud.operand[2].type == UD_OP_MEM) {
+			reg = (int)ud.operand[2].base;
+			index[2][0] = indices[reg].stack[indices[reg].s_size -1];
+			reg = (int)ud.operand[2].index;
+			index[2][1] = indices[reg].stack[indices[reg].s_size -1];
+		}
+		else if (ud.operand[2].type == UD_OP_REG) {
+			reg = (int)ud.operand[2].base;
+			index[2][0] = indices[reg].stack[indices[reg].s_size -1];
+			index[2][1] = -1;
+		}
+		/* Is there a definition of a variable? */
+		if (instructions[ud.mnemonic].write &&
+		    ud.operand[0].type == UD_OP_REG) {
+			reg = (int)ud.operand[0].base;
+			indices[reg].count++;
+			dm_ssa_index_stack_push((enum ud_type)reg,
+			    indices[reg].count);
+			index[0][0] = indices[reg].stack[indices[reg].s_size -1];
+			index[0][1] = -1;
+		}
+		else if (ud.operand[0].type == UD_OP_REG) {
+			reg = (int)ud.operand[0].base;
+			index[0][0] = indices[reg].stack[indices[reg].s_size - 1];
+			index[0][1] = -1;
+		}
+
+		/* Create a new instruction object and store this data */
+		/* Translate into ssa assembler */
+		dm_translate_intel_ssa(&ud, index);
+		/* Print output to ssa buffer of block */
+		char * old = n->ssa_output;
+		/* Colourise some statements */
+		if ((ud.br_far) || (ud.br_near) || instructions[ud.mnemonic].jump) {
+			/* jumps and calls are yellow */
+			asprintf(&(n->ssa_output), "%s\033[33m", old);
+			colour_set = 1;
+		}
+		else if ((ud.mnemonic == UD_Iret) || (ud.mnemonic == UD_Iretf)) {
+			asprintf(&(n->ssa_output), "%s\033[31m", old);
+			colour_set = 1;
+		}
+		if (colour_set) {
+			free (old);
+                        old = n->ssa_output;
+		}
+		/* If possible print target of jumps and calls as a block number
+		 * or function name */
+		if ((instructions[ud.mnemonic].jump) &&
+		    (found_node = dm_find_cfg_node_starting(dm_get_jump_target(ud)))) 
+				asprintf(&(n->ssa_output), "%s  " NADDR_FMT ": %-20s%s\t\t(Block %d)\n", old,
+				    ud.pc - ud_insn_len(&ud), ud_insn_hex(&ud), ud.insn_buffer, found_node->post);
+
+		else if ((ud.mnemonic == UD_Icall) &&
+			    (dm_dwarf_find_sym_at_offset(dm_get_jump_target(ud), &sym) == DM_OK))
+				asprintf(&(n->ssa_output), "%s  " NADDR_FMT ": %-20s%s\t(%s)\n", old,
+                                    ud.pc - ud_insn_len(&ud), ud_insn_hex(&ud), ud.insn_buffer, sym->name);
+		else
+			asprintf(&(n->ssa_output), "%s  " NADDR_FMT ": %-20s%s\n", old,
+			    ud.pc - ud_insn_len(&ud), ud_insn_hex(&ud), ud.insn_buffer);
+		free(old);
+		/* Set colour back to white if required */
+		if (colour_set) {
+			old = n->ssa_output;
+			asprintf(&(n->ssa_output), "%s\033[0m", old);
+			free(old);
+			colour_set = 0;
+		}
+	}
+	/* For each child of n */
+	for (i = 0; n->children[i] != NULL; i++) {
+		for (j = 0; j < n->children[i]->p_count; j++)
+			if (n->children[i]->parents[j] == n)
+				break;
+		node = (struct dm_cfg_node*) n->children[i];
+		/* n is the jth parent of child i */
+		/* Put the right index on the jth argument of all phi funcs in
+		 * child i */
+		for (k = 0; k < node->pf_count; k++) {
+			reg = node->phi_functions[k].var;
+			node->phi_functions[k].indexes[j] =
+			    indices[reg].stack[indices[reg].s_size - 1];
+		}
+	}
+	/* Call this function on all children (in dom tree) of this node */
+	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+		node = (struct dm_cfg_node*)p_iter->ptr;
+		if ((node->idom == n) && (node != n))
+			dm_rename_variables(node);
+	}
+	/* Now for every definition of a variable in this node pop the ssa
+	 * index that was added */
+	for (dm_seek(n->start); ud.pc - ud_insn_len(&ud) != n->end;) {
+		ud_disassemble(&ud);
+		if (instructions[ud.mnemonic].write &&
+		    ud.operand[0].type == UD_OP_REG) {
+			reg = (int)ud.operand[0].base;
+			dm_ssa_index_stack_pop(reg);
+		}
+	}
+	/* Same for phi functions */
+	for (i = 0; i < n->pf_count; i++) {
+		reg = n->phi_functions[i].var;
+		dm_ssa_index_stack_pop(reg);
+	}
+}
+
+void
+dm_translate_intel_ssa(struct ud* u, int index[][2])
+{
+	/* -- prefixes -- */
+
+	/* check if P_OSO prefix is used */
+	if (! P_OSO(u->itab_entry->prefix) && u->pfx_opr) {
+		switch (u->dis_mode) {
+			case 16:
+				mkasm(u, "o32 ");
+				break;
+			case 32:
+			case 64:
+				mkasm(u, "o16 ");
+				break;
+		}
+	}
+
+	/* check if P_ASO prefix was used */
+	if (! P_ASO(u->itab_entry->prefix) && u->pfx_adr) {
+		switch (u->dis_mode) {
+			case 16:
+				mkasm(u, "a32 ");
+				break;
+			case 32:
+				mkasm(u, "a16 ");
+				break;
+			case 64:
+				mkasm(u, "a32 ");
+				break;
+		}
+	}
+
+	if (u->pfx_seg && u->operand[0].type != UD_OP_MEM &&
+	    u->operand[1].type != UD_OP_MEM ) {
+	    mkasm(u, "%s", ud_reg_tab[u->pfx_seg - UD_R_AL]);
+	}
+	if (u->pfx_lock)
+		mkasm(u, "lock ");
+	if (u->pfx_rep)
+		mkasm(u, "rep ");
+	if (u->pfx_repne)
+		mkasm(u, "repne ");
+
+	/* print the instruction mnemonic */
+	mkasm(u, "%s ", ud_lookup_mnemonic(u->mnemonic));
+
+	/* operand 1 */
+	if (u->operand[0].type != UD_NONE) {
+		int cast = 0;
+		if (u->operand[0].type == UD_OP_IMM &&
+		    u->operand[1].type == UD_NONE)
+			cast = u->c1;
+		if (u->operand[0].type == UD_OP_MEM) {
+			cast = u->c1;
+			if (u->operand[1].type == UD_OP_IMM ||
+			    u->operand[1].type == UD_OP_CONST)
+				cast = 1;
+			if (u->operand[1].type == UD_NONE)
+				cast = 1;
+			if ((u->operand[0].size != u->operand[1].size ) &&
+			    u->operand[1].size)
+				cast = 1;
+		} else if ( u->operand[ 0 ].type == UD_OP_JIMM )
+			if ( u->operand[ 0 ].size > 8 )
+				cast = 1;
+		gen_operand_ssa(u, &u->operand[0], cast, index[0]);
+	}
+	/* operand 2 */
+	if (u->operand[1].type != UD_NONE) {
+		int cast = 0;
+		mkasm(u, ", ");
+		if ( u->operand[1].type == UD_OP_MEM ) {
+			cast = u->c1;
+			if ( u->operand[0].type != UD_OP_REG )
+				cast = 1;
+			if ( u->operand[0].size != u->operand[1].size &&
+			    u->operand[1].size )
+				cast = 1;
+			if ( u->operand[0].type == UD_OP_REG &&
+			    u->operand[0].base >= UD_R_ES &&
+			    u->operand[0].base <= UD_R_GS )
+				cast = 0;
+		}
+		gen_operand_ssa(u, &u->operand[1], cast, index[1]);
+	}
+
+	/* operand 3 */
+	if (u->operand[2].type != UD_NONE) {
+		mkasm(u, ", ");
+		gen_operand_ssa(u, &u->operand[2], u->c3, index[2]);
+	}
+}
+
+void
+gen_operand_ssa(struct ud* u, struct ud_operand* op, int syn_cast, int *index)
+{
+	switch(op->type) {
+		case UD_OP_REG:
+			mkasm(u, "%s_%d", ud_reg_tab[op->base - UD_R_AL],
+			    index[0]);
+			break;
+		case UD_OP_MEM: {
+			int op_f = 0;
+
+			if (syn_cast)
+				opr_cast(u, op);
+
+			mkasm(u, "[");
+
+			if (u->pfx_seg)
+				mkasm(u, "%s:",
+				    ud_reg_tab[u->pfx_seg - UD_R_AL]);
+
+			if (op->base) {
+				mkasm(u, "%s_%d",
+				    ud_reg_tab[op->base - UD_R_AL], index[0]);
+				op_f = 1;
+			}
+
+			if (op->index) {
+				if (op_f)
+					mkasm(u, "+");
+				mkasm(u, "%s_%d",
+				    ud_reg_tab[op->index -UD_R_AL], index[1]);
+				op_f = 1;
+			}
+
+			if (op->scale)
+				mkasm(u, "*%d", op->scale);
+
+			if (op->offset == 8) {
+				if (op->lval.sbyte < 0)
+					mkasm(u, "-0x%x", -op->lval.sbyte);
+				else
+					mkasm(u, "%s0x%x", (op_f) ? "+" : "",
+					    op->lval.sbyte);
+			}
+			else if (op->offset == 16)
+				mkasm(u, "%s0x%x", (op_f) ? "+" : "",
+				    op->lval.uword);
+			else if (op->offset == 32) {
+				if (u->adr_mode == 64) {
+					if (op->lval.sdword < 0)
+						mkasm(u, "-0x%x",
+						    -op->lval.sdword);
+					else
+						mkasm(u, "%s0x%x",
+						    (op_f) ? "+" : "",
+						    op->lval.sdword);
+				}
+				else
+					mkasm(u, "%s0x%lx", (op_f) ? "+" : "",
+					    op->lval.udword);
+			}
+			else if (op->offset == 64)
+				mkasm(u, "%s0x" FMT64 "x", (op_f) ? "+" : "",
+				    op->lval.uqword);
+
+			mkasm(u, "]");
+			break;
+		}
+
+		case UD_OP_IMM: {
+			int64_t  imm = 0;
+			uint64_t sext_mask = 0xffffffffffffffffull;
+			unsigned sext_size = op->size;
+
+			if (syn_cast)
+				opr_cast(u, op);
+			switch (op->size) {
+				case  8: imm = op->lval.sbyte; break;
+				case 16: imm = op->lval.sword; break;
+				case 32: imm = op->lval.sdword; break;
+				case 64: imm = op->lval.sqword; break;
+			}
+			if ( P_SEXT( u->itab_entry->prefix ) ) {
+				sext_size = u->operand[ 0 ].size;
+				if ( u->mnemonic == UD_Ipush )
+					/* push sign-extends to operand size */
+					sext_size = u->opr_mode;
+			}
+			if ( sext_size < 64 )
+				sext_mask = ( 1ull << sext_size ) - 1;
+			mkasm( u, "0x" FMT64 "x", imm & sext_mask );
+
+			break;
+		}
+
+		case UD_OP_JIMM:
+			if (syn_cast) opr_cast(u, op);
+			switch (op->size) {
+				case  8:
+					mkasm(u, "0x" FMT64 "x", u->pc +
+					    op->lval.sbyte);
+					break;
+				case 16:
+					mkasm(u, "0x" FMT64 "x", ( u->pc +
+					    op->lval.sword ) & 0xffff );
+					break;
+				case 32:
+					mkasm(u, "0x" FMT64 "x", ( u->pc +
+					    op->lval.sdword ) & 0xfffffffful );
+					break;
+				default:break;
+			}
+			break;
+
+		case UD_OP_PTR:
+			switch (op->size) {
+				case 32:
+					mkasm(u, "word 0x%x:0x%x",
+					    op->lval.ptr.seg,
+					    op->lval.ptr.off & 0xFFFF);
+					break;
+				case 48:
+					mkasm(u, "dword 0x%x:0x%lx",
+					    op->lval.ptr.seg,
+					    op->lval.ptr.off);
+					break;
+			}
+			break;
+
+		case UD_OP_CONST:
+			if (syn_cast) opr_cast(u, op);
+			mkasm(u, "%d", op->lval.udword);
+			break;
+
+		default: return;
+	}
 }
 
 void
 dm_place_phi_functions()
 {
-	struct dm_cfg_node	**W = NULL, *n = NULL, *dn = NULL;
+	struct dm_cfg_node	**W = NULL, *n = NULL, *dn = NULL, **B = NULL;
 	unsigned int		  i = 0;
 	int			  j = 0, k = 0;
-	int			  w_size = 0, duplicate = 0;
+	int			  w_size = 0, duplicate = 0, b_size = 0;
+	/* For each variable */
 	for (i = 0; i < UD_OP_CONST + 1; i++) {
+		/* Build a worklist W */
 		free(W);
 		W = malloc(indices[i].dn_count * sizeof(void*));
-		/*W = memcpy(indices[i].def_nodes, W, indices[i].dn_count *
-		    sizeof(void*));*/
 		for (j = 0; j < indices[i].dn_count; j++)
 			W[j] = indices[i].def_nodes[j];
 		w_size = indices[i].dn_count;
-		printf("Left in worklist: %d\r", w_size);
+		/* While the worklist is not empty */
 		while (w_size) {
+			/* Find a node n that hasn't already been checked */
+			while (w_size &&
+			    dm_array_contains(B, b_size, W[w_size -1]))
+				w_size--;
+			if (!w_size)
+				break;
+			/* Remove node n from W */
 			n = W[w_size - 1];
 			W = realloc(W, --w_size * sizeof(void*));
-			if (n != NULL)
+			/* Add n to blacklist so we dont check it twice or get
+			 * stuck in an infinite loop */
+			B = realloc(B, ++b_size * sizeof(void*));
+			B[b_size - 1] = n;
+			/* For each node dn in DF of n */
 			for (j = 0; j < n->df_count; j++) {
 				dn = (struct dm_cfg_node*)n->df_set[j];
+				/* Note in i that i has a phi node in dn */
 				if (!dm_array_contains(indices[i].phi_nodes,
 				    indices[i].pn_count, dn)) {
 					indices[i].phi_nodes =
@@ -130,38 +607,41 @@ dm_place_phi_functions()
 					    [indices[i].pn_count -1] = dn;
 				}
 				duplicate = 0;
-				for (k = 0; k < dn->pv_count; k++)
-					if (dn->phi_vars[k] == i) {
+				/* Put phi functions in block dn */
+				for (k = 0; k < dn->pf_count; k++)
+					if (dn->phi_functions[k].var == i) {
 						duplicate = 1;
 						break;
 					}
 				if (!duplicate) {
-					dn->phi_vars = realloc(dn->phi_vars,
-					    ++dn->pv_count * sizeof(int));
-					dn->phi_vars[dn->pv_count - 1] = i;
+					dn->phi_functions =
+					    realloc(dn->phi_functions,
+					    ++dn->pf_count * sizeof(struct phi_function));
+					dn->phi_functions[dn->pf_count - 1].var = i;
+					dn->phi_functions[dn->pf_count - 1].arguments = dn->p_count;
+					dn->phi_functions[dn->pf_count - 1].indexes = malloc(dn->p_count * sizeof(int));
+					dn->phi_functions[dn->pf_count - 1].index = 0;
 				}
-				if ((!dm_array_contains(W, w_size, dn)) && (dn != n)) {
+				/* Add dn to worklist */
+				if (!dm_array_contains(W, w_size, dn)) {
 					W = realloc(W, ++w_size *
 					    sizeof(void*));
 					W[w_size - 1] = dn;
 				}
 			}
-			else
-				printf("n is NULL!!!\n");
 		}
 	}
-	printf("\n");
 }
 
 int
-dm_array_contains(struct dm_cfg_node **list, int count, struct dm_cfg_node *term)
+dm_array_contains(struct dm_cfg_node **list, int c, struct dm_cfg_node *term)
 {
 	int i = 0;
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < c; i++) {
 		if (list[i] == term)
-			return DM_OK;
+			return 1;
 	}
-	return DM_FAIL;
+	return 0;
 }
 
 void
@@ -172,19 +652,20 @@ dm_ssa_find_var_defs()
 	enum ud_type		 reg = 0;
 	int			 duplicate = 0, i =0;
 
+	/* For all nodes n */
 	for (p = p_head; p->ptr != NULL; p = p->next) {
 		n = (struct dm_cfg_node*)p->ptr;
-		for (dm_seek(n->start); ud.pc != n->end;
-		    read = ud_disassemble(&ud)) {
-			if (instructions[ud.mnemonic].write) {
+		/* For all statements in node n */
+		for (dm_seek(n->start); ud.pc - ud_insn_len(&ud) != n->end;) {
+			read = ud_disassemble(&ud);
+			//n->s_count++;
+			/* If instruction writes to a register */
+			if ((instructions[ud.mnemonic].write)
+			    && (ud.operand[0].type == UD_OP_REG)) {
 				reg = ud.operand[0].base;
-				duplicate = 0;
-				for (i = 0; i < indices[reg].dn_count; i++)
-					if (indices[reg].def_nodes[i] == n) {
-						duplicate = 1;
-						break;
-					}
-				if (!duplicate) {
+				/* Record that n contains definition of reg */
+				if (!dm_array_contains(indices[reg].def_nodes,
+				    indices[reg].dn_count, n)) {
 					indices[reg].def_nodes
 					    = realloc(indices[reg].def_nodes,
 					    ++indices[reg].dn_count
@@ -209,6 +690,28 @@ dm_ssa_find_var_defs()
 }
 
 void
+dm_ssa_index_stack_push(enum ud_type reg, int i)
+{
+	indices[reg].stack = realloc(indices[reg].stack,
+	    (++indices[reg].s_size) * sizeof(int));
+	indices[reg].stack[indices[reg].s_size - 1] = i;
+}
+
+int
+dm_ssa_index_stack_pop(enum ud_type reg)
+{
+	if (!indices[reg].s_size) {
+		printf("Tried to pop empty stack (reg %s %d)!\n", ud_reg_tab[reg -
+1], reg);
+		return -1;
+	}
+	int i = indices[reg].stack[indices[reg].s_size - 1];
+	indices[reg].stack = realloc(indices[reg].stack,
+	    (--indices[reg].s_size) * sizeof(int));
+	return i;
+}
+
+void
 dm_ssa_index_init()
 {
 	int	i;
@@ -218,7 +721,10 @@ dm_ssa_index_init()
 	/* Initialise struct for SSA indexes */
 	for (i = 0; i < UD_OP_CONST + 1; i++) {
 		indices[i].reg = (enum ud_type)i;
-		indices[i].index = 0;
+		indices[i].count = 0;
+		indices[i].stack = malloc(sizeof(int));
+		indices[i].stack[0] = 0;
+		indices[i].s_size = 1;
 		indices[i].def_nodes = NULL;
 		indices[i].dn_count = 0;
 		indices[i].phi_nodes = NULL;

@@ -208,7 +208,7 @@ dm_cmd_info(char **args)
 	(void) args;
 
 	printf("  %-16s %s\n", "Filename:", file_info.name);
-	printf("  %-16s %llu\n", "Size:", file_info.stat.st_size);
+	printf("  %-16s " NADDR_FMT, "Size:", file_info.stat.st_size);
 	printf("  %-16s %hd\n", "Bits:", file_info.bits);
 	printf("  %-16s %s\n", "Ident:", file_info.ident);
 	printf("  %-16s %hd\n", "ELF:", file_info.elf);

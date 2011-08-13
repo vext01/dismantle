@@ -43,8 +43,23 @@ struct dm_cfg_node {
 	int			  df_count;
 	enum ud_type		 *def_vars;/* Vars defined in this node */
 	int			  dv_count;
-	enum ud_type		 *phi_vars;/* Vars requiring phi funcs */
-	int			  pv_count;
+	struct phi_function	 *phi_functions;/* Vars requiring phi funcs */
+	int			  pf_count;
+	struct instruction	**instructions;
+	int			  i_count;
+	char			 *ssa_output;
+};
+
+struct phi_function {
+	enum ud_type		  var;
+	int			  arguments;
+	int			  index;
+	int			 *indexes;
+};
+
+struct instruction {
+	struct ud		  ud;
+	int			  index[3][2];
 };
 
 /*
@@ -56,6 +71,7 @@ struct ptrs {
 	struct ptrs	*next;
 };
 
+void			dm_check_cfg_consistency();
 void			dm_instruction_se_init();
 int			dm_cmd_cfg(char **args);
 

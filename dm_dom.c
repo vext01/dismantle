@@ -181,7 +181,7 @@ dm_dom_frontiers()
 void
 dm_dom_frontiers_free()
 {
-	for (p = p_head; p->ptr != NULL; p = p->next)
+	for (p = p_head; (p->ptr != NULL) && (p->next != NULL); p = p->next)
 		free(((struct dm_cfg_node*)p->ptr)->df_set);
 }
 
