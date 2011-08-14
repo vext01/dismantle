@@ -26,6 +26,7 @@
 #include "dm_cfg.h"
 #include "dm_dom.h"
 #include "dm_ssa.h"
+#include "dm_tc.h"
 #include "dm_dwarf.h"
 
 uint8_t				 colours_on = 1;
@@ -89,6 +90,7 @@ struct dm_cmd_sw {
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"sht", 0, dm_cmd_sht},
 	{"ssa", 0, dm_cmd_ssa},
+	{"tc", 0, dm_cmd_tc},
 	{NULL, 0, NULL}
 };
 

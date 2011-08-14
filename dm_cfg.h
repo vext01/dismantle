@@ -45,9 +45,8 @@ struct dm_cfg_node {
 	int			  dv_count;
 	struct phi_function	 *phi_functions;/* Vars requiring phi funcs */
 	int			  pf_count;
-	struct instruction	**instructions;
+	struct instruction	**instructions; /* Instructions in this node */
 	int			  i_count;
-	char			 *ssa_output;
 };
 
 struct phi_function {
@@ -60,6 +59,7 @@ struct phi_function {
 struct instruction {
 	struct ud		  ud;
 	int			  index[3][2];
+	int			  cast[3];
 };
 
 /*

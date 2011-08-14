@@ -229,7 +229,6 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->pf_count = 0;
 	node->instructions = NULL;
 	node->i_count = 0;
-	node->ssa_output = NULL;
 	/* Add node to the free list so we can free the memory at the end */
 	p->ptr = (void*)node;
 	p->next = calloc(1, sizeof(struct ptrs));
@@ -254,7 +253,7 @@ dm_add_parent(struct dm_cfg_node *node, struct dm_cfg_node *parent)
 struct dm_cfg_node *
 dm_gen_cfg_block(struct dm_cfg_node *node)
 {
-	NADDR			addr = node->start, end = 0;
+	NADDR			addr = node->start;
 	unsigned int		read = 0, oldRead = 0;
 	char			*hex;
 	struct dm_cfg_node	*foundNode = NULL;
@@ -285,7 +284,6 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 		if (instructions[ud.mnemonic].jump) {
 			/* End the block here */
 			node->end = addr;
-			end = addr;
 			free(node->children);
 
 			/* Make space for the children of this block */

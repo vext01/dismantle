@@ -34,6 +34,7 @@ extern uint8_t			colours_on;
 #define ANSII_RED               (colours_on ? "\033[31m" : "")
 #define ANSII_GREEN             (colours_on ? "\033[32m" : "")
 #define ANSII_WHITE             (colours_on ? "\033[0m" : "")
+#define ANSII_LIGHTBLUE		(colours_on ? "\033[01;34m" : "")
 
 /* simple debug facility (originally from HGD code) */
 extern int			 dm_debug;
