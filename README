@@ -12,4 +12,5 @@
 =============================================================================
 
 We just started hacking and this happened. A small binary file browser and
-disassembler (x86/64). The project is inspired by radare2.
+disassembler (x86/64) with control flow recovery and SSA code output.
+The project is inspired by radare2.
