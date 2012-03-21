@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include "dm_cfg.h"
 #include "dm_gviz.h"
+#include "dm_dwarf.h"
 
 /* Head of the list and a list iterator */
 struct ptrs	*p_head = NULL;
@@ -53,6 +54,9 @@ dm_cmd_cfg(char **args) {
 	/* Print CFG */
 	dm_print_cfg(cfg);
 
+	/* Check CFG for consistency! */
+	dm_check_cfg_consistency();
+
 	/* Free all memory */
 	dm_free_cfg();
 
@@ -84,6 +88,36 @@ dm_recover_cfg() {
 	return cfg;
 }
 
+void
+dm_check_cfg_consistency()
+{
+	struct dm_cfg_node *node = NULL;
+	int i = 0, j = 0, consistent = 0;
+	for (p = p_head; p != NULL; p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		for (i = 0; node->children[i] != NULL; i++) {
+			consistent = 0;
+			for (j = 0; j < node->children[i]->p_count; j++) {
+				if (node->children[i]->parents[j] == node)
+					consistent = 1;
+			}
+			if (!consistent)
+				printf("No link from node %d to parent %d!\n",
+				    node->children[i]->post, node->post);
+		}
+		for (i = 0; i < node->p_count; i++) {
+			consistent = 0;
+			for (j = 0; node->parents[i]->children[j] != NULL; j++) {
+				if (node->parents[i]->children[j] == node)
+					consistent = 1;
+			}
+			if (!consistent)
+				printf("No link from node %d to child %d!\n",
+				    node->parents[i]->post, node->post);
+		}
+	}
+}
+
 /*
  * Initialise structures used for CFG recovery
  */
@@ -93,8 +127,8 @@ dm_init_cfg()
 	dm_instruction_se_init();
 
 	/* Initialise free list */
-	p_head = calloc(1, sizeof(struct ptrs));
-	p = p_head;
+	//p_head = calloc(1, sizeof(struct ptrs));
+	//p = p_head;
 }
 
 /*
@@ -116,6 +150,7 @@ dm_instruction_se_init()
 		instructions[c].write = 1;
 		instructions[c].jump = 0;
 		instructions[c].ret = 0;
+		instructions[c].disjunctive = 0;
 	}
 
 	/* XXX store in linked list (queue.h) */
@@ -167,7 +202,11 @@ dm_instruction_se_init()
 	instructions[UD_Ijge].jump = 2;
 
 	instructions[UD_Icall].write = 0;
-	instructions[UD_Icall].jump = 0;
+	instructions[UD_Icall].jump = 2;
+
+	instructions[UD_Iadd].disjunctive = 1;
+
+	instructions[UD_Isub].disjunctive = 1;
 }
 
 /*
@@ -192,14 +231,21 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->df_count = 0;
 	node->def_vars = NULL;
 	node->dv_count = 0;
-	node->phi_vars = NULL;
-	node->pv_count = 0;
-
+	node->phi_functions = NULL;
+	node->pf_count = 0;
+	node->instructions = NULL;
+	node->i_count = 0;
 	/* Add node to the free list so we can free the memory at the end */
-	p->ptr = (void*)node;
-	p->next = calloc(1, sizeof(struct ptrs));
-	p = p->next;
-
+	if (p) {
+		p->next = calloc(1, sizeof(struct ptrs));
+		p = p->next;
+		p->ptr = (void*)node;
+	}
+	else {
+		p = calloc(1, sizeof(struct ptrs));
+		p->ptr = (void*)node;
+		p_head = p;
+	}
 	p_length++;
 
 	return (node);
@@ -219,11 +265,12 @@ dm_add_parent(struct dm_cfg_node *node, struct dm_cfg_node *parent)
 struct dm_cfg_node *
 dm_gen_cfg_block(struct dm_cfg_node *node)
 {
-	NADDR			addr = node->start;
-	unsigned int		read = 0, oldRead = 0;
+	NADDR			 addr = node->start;
+	unsigned int		 read = 0, oldRead = 0;
 	char			*hex;
 	struct dm_cfg_node	*foundNode = NULL;
-	NADDR			target = 0;
+	NADDR			 target = 0;
+	int			 i = 0, duplicate = 0, local_target = 1;
 
 	dm_seek(node->start);
 	while (1) {
@@ -245,8 +292,20 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 		/*
 		 * Check for jump instructions and create
 		 * new nodes as necessary
-		 */
+		 *
+		 * Make sure the target is inside the .text
+		 * section, if not ignore it */
+		local_target = 1;
 		if (instructions[ud.mnemonic].jump) {
+			target = dm_get_jump_target(ud);
+			if (!dm_is_target_in_text(target))
+				local_target = 0;
+		}
+
+		if (instructions[ud.mnemonic].jump && local_target) {
+			/* Get the target of the jump instruction */
+			target = dm_get_jump_target(ud);
+
 			/* End the block here */
 			node->end = addr;
 			free(node->children);
@@ -254,9 +313,6 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			/* Make space for the children of this block */
 			node->children = calloc(instructions[ud.mnemonic].jump
 			    + 1, sizeof(void*));
-
-			/* Get the target of the jump instruction */
-			target = dm_get_jump_target(ud);
 
 			/* Check if we are jumping to the start of an already
 			 * existing block, if so use that as child of current
@@ -271,13 +327,24 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			 * child of current block */
 			else if ((foundNode = dm_find_cfg_node_containing(
 			    target)) != NULL) {
-				/*
-				 * We found a matching block. Now find address
-				 * before addr and split the block
-				 */
+				//printf("Found jump to middle of existing block\n");
+				/* We found a matching block. Now find address
+				 * before addr and split the block */
 				node->children[0] = dm_split_cfg_block(
 				    foundNode, target);
-				dm_add_parent(node->children[0], node);
+
+				duplicate = 0;
+				for (i = 0; i < node->children[0]->p_count; i++)
+					if (node->children[0]->parents[i] == node)
+						duplicate = 1;
+				/* I can't for the life of me figure out why I
+				 * wrote the first branch of this if statement,
+				 * but it seems to work! */
+				if (duplicate)
+					dm_add_parent(node->children[0],
+					    node->children[0]);
+				else
+					dm_add_parent(node->children[0], node);
 			}
 			/* This is a new block, so scan with a recursive call
 			 * to find it's start, end, and children */
@@ -296,6 +363,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			if (node->end < addr) {
 				/* Now we must find the right block to continue
 				 * from */
+			//	printf("Node was split after recursive call!\n");
 				foundNode = dm_find_cfg_node_ending(addr);
 				if (foundNode != NULL) {
 					node = foundNode;
@@ -307,8 +375,10 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			 * follow the other leg of the jump
 			 */
 			if (instructions[ud.mnemonic].jump > 1) {
+			//	printf("Follow other leg of a jump\n");
 				if ((node->children[1] =
 				    dm_find_cfg_node_starting(ud.pc)) != NULL) {
+			//		printf("Node already exists at target!\n");
 					dm_add_parent(node->children[1], node);
 					break;
 				}
@@ -329,6 +399,23 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 	}
 	node->end = addr;
 	return node;
+}
+
+int
+dm_is_target_in_text(NADDR addr)
+{
+	int ret = 1;
+	NADDR start = 0, size = 0;
+
+	start = dm_find_section(".text");
+	size = dm_find_size(".text");
+	if ((start == -1) || (size == -1))
+		ret = 0;
+	else
+	if ((addr < start) || (addr >
+	    (start + size)))
+		ret = 0;
+	return ret;
 }
 
 struct dm_cfg_node *
@@ -353,7 +440,7 @@ dm_split_cfg_block(struct dm_cfg_node *node, NADDR addr)
 	for (dm_seek(node->start); addr2 + read < addr; addr2 += read)
 		read = ud_disassemble(&ud);
 
-	node->end = addr2 - read;
+	node->end = addr2;// - read;
 
 	/* Head has only one child - the tail node */
 	node->children = calloc(2, sizeof(void*));
@@ -365,7 +452,7 @@ dm_split_cfg_block(struct dm_cfg_node *node, NADDR addr)
 	for (i = 0; tail->children[i] != NULL; i++)
 		for (j = 0; j < tail->children[i]->p_count; j++)
 			if (tail->children[i]->parents[j] == node) {
-				tail->children[i]->parents[j] = node;
+				tail->children[i]->parents[j] = tail;
 			}
 	/* Finally, return the new tail node*/
 	return tail;
@@ -380,10 +467,13 @@ dm_find_cfg_node_starting(NADDR addr)
 {
 	struct dm_cfg_node	*node;
 
-	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
-		node = (struct dm_cfg_node*)(p_iter->ptr);
-		if (node->start == addr)
-			return node;
+	for (p_iter = p_head;
+	    (p_iter != NULL); p_iter = p_iter->next) {
+		if (p_iter->ptr != NULL) {
+			node = (struct dm_cfg_node*)(p_iter->ptr);
+			if (node->start == addr)
+				return node;
+		}
 	}
 
 	return (NULL);
@@ -398,7 +488,7 @@ dm_find_cfg_node_ending(NADDR addr)
 {
 	struct dm_cfg_node	*node;
 
-	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+	for (p_iter = p_head; p_iter != NULL; p_iter = p_iter->next) {
 		node = (struct dm_cfg_node*)(p_iter->ptr);
 		if (node->end == addr)
 			return (node);
@@ -415,7 +505,7 @@ dm_find_cfg_node_containing(NADDR addr)
 {
 	struct dm_cfg_node		*node;
 
-	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+	for (p_iter = p_head; p_iter != NULL; p_iter = p_iter->next) {
 
 		node = (struct dm_cfg_node*) (p_iter->ptr);
 
@@ -436,7 +526,7 @@ dm_print_cfg()
 	struct dm_cfg_node	*node;
 	int			c;
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p = p_head; p != NULL; p = p->next) {
 		node = (struct dm_cfg_node*) (p->ptr);
 
 		printf("Block %d start: " NADDR_FMT ", end: " NADDR_FMT
@@ -468,8 +558,10 @@ dm_free_cfg()
 
 	p = p_head;
 	while (p != NULL) {
-		if (p->ptr != NULL)
+		if (p->ptr != NULL) {
 			free(((struct dm_cfg_node*)(p->ptr))->children);
+			free(((struct dm_cfg_node*)(p->ptr))->parents);
+		}
 		free(p->ptr);
 		p_prev = p;
 		p = p->next;
@@ -514,16 +606,18 @@ dm_dfw(struct dm_cfg_node *node)
 struct dm_cfg_node*
 dm_get_unvisited_node()
 {
-	p = p_head;
-	for (;p->next != NULL; p = p->next)
+	for (p = p_head; p != NULL; p = p->next) {
+		//if (p->ptr != NULL)
 		if (!((struct dm_cfg_node*)(p->ptr))->visited)
 			return p->ptr;
+	}
         return NULL;
 }
 
 void
 dm_graph_cfg()
 {
+	struct dm_dwarf_sym_cache_entry *sym = NULL;
         struct dm_cfg_node *node = NULL;
         FILE *fp = dm_new_graph("cfg.dot");
         char *itoa1 = NULL, *itoa2 = NULL;
@@ -531,20 +625,30 @@ dm_graph_cfg()
 
 	if (!fp) return;
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p = p_head; p != NULL; p = p->next) {
 		node = (struct dm_cfg_node*)(p->ptr);
 
 		asprintf(&itoa1, "%d", node->post);
-		asprintf(&itoa2, "%d\\nstart: " NADDR_FMT "\\nend: "
-		    NADDR_FMT, node->post, node->start,
-		    node->end);
+		/*if (dm_dwarf_find_sym_at_offset(node->start, &sym) == DM_OK) {
+			asprintf(&itoa2, "%d (%s)\\nstart: " NADDR_FMT "\\nend: "
+			    NADDR_FMT, node->post, sym->name, node->start,
+			    node->end);
+			dm_colour_label(fp, itoa1, "lightpink");
+		}
+		else {
+			asprintf(&itoa2, "%d\\nstart: " NADDR_FMT "\\nend: "
+			    NADDR_FMT, node->post, node->start,
+			    node->end);
+		}
 		dm_add_label(fp, itoa1, itoa2);
-		free(itoa2);
+		free(itoa2);*/
 
 		for (c = 0; node->children[c] != NULL; c++) {
 			asprintf(&itoa2, "%d",
 			    node->children[c]->post);
 			dm_add_edge(fp, itoa1, itoa2);
+			if (node->children[c]->post > node->post)
+				dm_colour_label(fp, itoa2, "lightblue");
 			free(itoa2);
 		}
 		free(itoa1);

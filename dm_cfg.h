@@ -26,6 +26,7 @@ struct dm_instruction_se {
 	int			write;
 	int			jump;
 	int			ret;
+	int			disjunctive;
 };
 
 struct dm_cfg_node {
@@ -33,6 +34,7 @@ struct dm_cfg_node {
 	NADDR			  end;
 	struct dm_cfg_node	**children;
 	struct dm_cfg_node	**parents;
+	int			  hell_node;
 	int			  p_count;
 	int			  visited;
 	int			  pre;     /* Pre-order position */
@@ -43,8 +45,87 @@ struct dm_cfg_node {
 	int			  df_count;
 	enum ud_type		 *def_vars;/* Vars defined in this node */
 	int			  dv_count;
-	enum ud_type		 *phi_vars;/* Vars requiring phi funcs */
-	int			  pv_count;
+	struct phi_function	 *phi_functions;/* Vars requiring phi funcs */
+	int			  pf_count;
+	struct instruction	**instructions; /* Instructions in this node */
+	int			  i_count;
+};
+
+struct phi_function {
+	enum ud_type		   var;
+	int			   arguments;
+	int			   index;
+	int			  *indexes;
+	struct type_constraint	***constraints;
+	int			  *c_counts;
+	int			   d_count;
+};
+
+struct instruction {
+	struct ud		   ud;
+	int			   index[3][2];
+	int			   cast[3];
+	struct type_constraint	***constraints; /* Constraints */
+	int			  *c_counts; /*# conjunctions */
+	int			   d_count; /*# disjunctions */
+};
+
+enum type_class {
+	T_REGISTER,
+	T_PTR,
+	T_BASIC,
+	T_ALPHA,
+	T_ARRAY,
+	T_STRUCT
+};
+
+enum basic_type {
+	BT_CHAR = 8,	/* 8 bit */
+	BT_SHORT = 16,	/* 16 bit */
+	BT_INT = 32,	/* 32 bit */
+	BT_LONG = 64	/* 64 bit */
+};
+
+struct lval {
+	int	_signed;
+	int	size;
+	union {
+		int8_t		sbyte;
+		uint8_t		ubyte;
+		int16_t		sword;
+		uint16_t	uword;
+		int32_t		sdword;
+		uint32_t	udword;
+		int64_t		sqword;
+		uint64_t	uqword;
+	} lval_u;
+};
+
+struct type_descriptor {
+	enum type_class		  c_type;
+	/* If register */
+	enum ud_mnemonic_code	  reg;
+	int			  r_index;
+	/* If ptr */
+	struct type_descriptor	 *p_type;
+	/* If struct */
+	struct type_descriptor	**types;
+	struct lval		 *offsets;
+	int			  t_count;
+	/* If basic type */
+	enum basic_type		  b_type;
+	/* If alpha */
+	int			  a_index;
+	/* If array */
+	struct type_descriptor	 *a_type;
+	/* */
+	struct type_descriptor	 *set;
+	struct type_constraint	 *def;
+};
+
+struct type_constraint {
+	struct type_descriptor	  *left;
+	struct type_descriptor	  *right;
 };
 
 /*
@@ -56,9 +137,11 @@ struct ptrs {
 	struct ptrs	*next;
 };
 
+void			dm_check_cfg_consistency();
 void			dm_instruction_se_init();
 int			dm_cmd_cfg(char **args);
 
+int			dm_is_target_in_text(NADDR addr);
 struct dm_cfg_node*	dm_recover_cfg();
 void			dm_init_cfg();
 struct dm_cfg_node*	dm_new_cfg_node(NADDR nstart, NADDR nend);
