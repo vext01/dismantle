@@ -20,7 +20,6 @@
 #include "common.h"
 #include "dm_dis.h"
 
-
 struct dm_instruction_se {
 	enum ud_mnemonic_code	instruction;
 	int			write;

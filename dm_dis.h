@@ -17,7 +17,7 @@
 #ifndef __DM_DIS_H
 #define __DM_DIS_H
 
-#include <udis86.h>
+#include "udis86/udis86.h"
 #include "common.h"
 
 extern ud_t		ud;

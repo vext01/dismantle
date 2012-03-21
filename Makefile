@@ -1,14 +1,23 @@
-LDFLAGS= 	-ludis86 -L/usr/local/lib -lelf -lreadline -ltermcap -ldwarf
+UDIS86_ARCHIVE=	udis86/libudis86/.libs/libudis86.a
+LDFLAGS= 	-L/usr/local/lib -lelf -lreadline -ltermcap -ldwarf
 CPPFLAGS=	-I/usr/local/include
 CFLAGS=		-g -Wall -Wextra 
 
 all: dismantle
 
+udis86/Makefile: udis86/configure
+	cd udis86 && ./configure
+
+udis86: udis86/Makefile ${UDIS86_ARCHIVE}
+	cd udis86 && ./configure && ${MAKE}
+
+.PHONY: ${UDIS86_ARCHIVE}
+
 dismantle: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o dm_ssa.o \
     dm_dwarf.o
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
-		    dm_ssa.o dm_dwarf.o
+		    dm_ssa.o dm_dwarf.o ${UDIS86_ARCHIVE}
 
 static: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o dm_ssa.o \
     dm_dwarf.o
@@ -39,4 +48,4 @@ dm_dwarf.o: dm_dwarf.c dm_dwarf.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dwarf.o dm_dwarf.c
 
 clean:
-	rm -f *.o *.dot dismantle
+	rm -f *.o *.dot dismantle && cd udis86 && ${MAKE} clean
