@@ -45,6 +45,7 @@ void dm_end_graph(FILE *fp)
 {
 	fprintf(fp, "}\n");
 	fclose(fp);
+	fsync(fileno(fp));
 }
 
 void
