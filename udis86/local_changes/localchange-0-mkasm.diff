@@ -1,0 +1,79 @@
+diff --git a/libudis86/Makefile.am b/libudis86/Makefile.am
+index ada6a8e..434ae3b 100644
+--- a/libudis86/Makefile.am
++++ b/libudis86/Makefile.am
+@@ -23,7 +23,9 @@ include_ladir = ${includedir}/libudis86
+ include_la_HEADERS = \
+     types.h \
+     extern.h \
+-    itab.h
++    itab.h \
++    decode.h \
++    syn.h
+ 
+ EXTRA_DIST = itab.py
+ 
+diff --git a/libudis86/syn-intel.c b/libudis86/syn-intel.c
+index 5efc0f3..5f871d6 100644
+--- a/libudis86/syn-intel.c
++++ b/libudis86/syn-intel.c
+@@ -33,7 +33,7 @@
+  * opr_cast() - Prints an operand cast.
+  * -----------------------------------------------------------------------------
+  */
+-static void 
++void 
+ opr_cast(struct ud* u, struct ud_operand* op)
+ {
+   switch(op->size) {
+diff --git a/libudis86/syn.c b/libudis86/syn.c
+index 0d10977..fa5d85a 100644
+--- a/libudis86/syn.c
++++ b/libudis86/syn.c
+@@ -24,6 +24,16 @@
+  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#include "syn.h"
++
++void mkasm(struct ud* u, const char* fmt, ...)
++{
++  va_list ap;
++  va_start(ap, fmt);
++  u->insn_fill += vsprintf((char*) u->insn_buffer + u->insn_fill, fmt, ap);
++  va_end(ap);
++}
++
+ /* -----------------------------------------------------------------------------
+  * Intel Register Table - Order Matters (types.h)!
+  * -----------------------------------------------------------------------------
+diff --git a/libudis86/syn.h b/libudis86/syn.h
+index 30ee191..dd548df 100644
+--- a/libudis86/syn.h
++++ b/libudis86/syn.h
+@@ -40,12 +40,6 @@
+ 
+ extern const char* ud_reg_tab[];
+ 
+-static void mkasm(struct ud* u, const char* fmt, ...)
+-{
+-  va_list ap;
+-  va_start(ap, fmt);
+-  u->insn_fill += vsprintf((char*) u->insn_buffer + u->insn_fill, fmt, ap);
+-  va_end(ap);
+-}
++void mkasm(struct ud* u, const char* fmt, ...);
+ 
+ #endif
+diff --git a/udis86.h b/udis86.h
+index bdd3857..7345c61 100644
+--- a/udis86.h
++++ b/udis86.h
+@@ -29,5 +29,7 @@
+ #include "libudis86/types.h"
+ #include "libudis86/extern.h"
+ #include "libudis86/itab.h"
++#include "libudis86/syn.h"
++#include "libudis86/decode.h"
+ 
+ #endif

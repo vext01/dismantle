@@ -23,7 +23,9 @@ include_ladir = ${includedir}/libudis86
 include_la_HEADERS = \
     types.h \
     extern.h \
-    itab.h
+    itab.h \
+    decode.h \
+    syn.h
 
 EXTRA_DIST = itab.py
 

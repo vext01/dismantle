@@ -24,6 +24,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "syn.h"
+
+void mkasm(struct ud* u, const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  u->insn_fill += vsprintf((char*) u->insn_buffer + u->insn_fill, fmt, ap);
+  va_end(ap);
+}
+
 /* -----------------------------------------------------------------------------
  * Intel Register Table - Order Matters (types.h)!
  * -----------------------------------------------------------------------------

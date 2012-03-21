@@ -33,7 +33,7 @@
  * opr_cast() - Prints an operand cast.
  * -----------------------------------------------------------------------------
  */
-static void 
+void 
 opr_cast(struct ud* u, struct ud_operand* op)
 {
   switch(op->size) {

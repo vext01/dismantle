@@ -40,12 +40,6 @@
 
 extern const char* ud_reg_tab[];
 
-static void mkasm(struct ud* u, const char* fmt, ...)
-{
-  va_list ap;
-  va_start(ap, fmt);
-  u->insn_fill += vsprintf((char*) u->insn_buffer + u->insn_fill, fmt, ap);
-  va_end(ap);
-}
+void mkasm(struct ud* u, const char* fmt, ...);
 
 #endif
