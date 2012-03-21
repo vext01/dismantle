@@ -23,8 +23,7 @@ static: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o dm_ssa.o \
     dm_dwarf.o
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
-		    dm_ssa.o dm_dwarf.o \
-		/usr/local/lib/libudis86.a /usr/lib/libdwarf.a
+		    dm_ssa.o dm_dwarf.o /usr/lib/libdwarf.a ${UDIS86_ARCHIVE}
 
 dm_dis.o: dm_dis.c dm_dis.h common.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dis.o dm_dis.c
