@@ -1,10 +1,8 @@
 Makefile
-Makefile.in
 *.lo
 *.o
 .deps
 .libs
-config.*
 *.pyc
 aclocal.m4
 autom4te.cache/
