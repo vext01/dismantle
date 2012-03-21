@@ -28,13 +28,54 @@
 
 #define PACKAGE_VERSION		"0.1"
 
-/* ANSII colours */
+/* ANSII  Foreground Colours */
+#define ESCAPE	"\033["
+
+#define NORMAL	"0;"
+#define LIGHT	"1;"
+#define DARK	"2;"
+
+#define INVERT	"7;"
+#define BLINK	"5;"
+#define USCORE	"4;"
+#define HIDDEN	"8;"
+
+#define FG	"3"
+#define BG	"4"
+
+#define BLACK	"0m"
+#define	RED	"1m"
+#define GREEN	"2m"
+#define YELLOW	"3m"
+#define BLUE	"4m"
+#define Magenta "5m"
+#define CYAN	"6m"
+#define WHITE	"7m"
+
+#define RESET	"0m"
+#define END	"m"
+
 extern uint8_t			colours_on;
-#define ANSII_YELLOW            (colours_on ? "\033[33m" : "")
-#define ANSII_RED               (colours_on ? "\033[31m" : "")
-#define ANSII_GREEN             (colours_on ? "\033[32m" : "")
-#define ANSII_WHITE             (colours_on ? "\033[0m" : "")
+#define ANSII_BLACK		(colours_on ? "\033[0;30m" : "")
+#define ANSII_RED               (colours_on ? "\033[0;31m" : "")
+#define ANSII_GREEN             (colours_on ? "\033[0;32m" : "")
+#define ANSII_BROWN		(colours_on ? "\033[0;33m" : "")
+#define ANSII_BLUE		(colours_on ? "\033[0;34m" : "")
+#define ANSII_MAGENTA		(colours_on ? "\033[0;35m" : "")
+#define ANSII_CYAN		(colours_on ? "\033[0;36m" : "")
+#define ANSII_GRAY		(colours_on ? "\033[0;37m" : "")
+
+#define ANSII_DARKGRAY		(colours_on ? "\033[01;30m" : "")
+#define ANSII_LIGHTRED		(colours_on ? "\033[01;31m" : "")
+#define ANSII_LIGHTGREEN	(colours_on ? "\033[01;32m" : "")
+#define ANSII_YELLOW            (colours_on ? "\033[01;33m" : "")
 #define ANSII_LIGHTBLUE		(colours_on ? "\033[01;34m" : "")
+#define ANSII_LIGHTMAGENTA	(colours_on ? "\033[01:35m" : "")
+#define ANSII_LIGHTCYAN		(colours_on ? "\033[01;36m" : "")
+#define ANSII_REALWHITE		(colours_on ? "\033[01;37m" : "")
+
+#define ANSII_WHITE             (colours_on ? "\033[0m" : "")
+
 
 /* simple debug facility (originally from HGD code) */
 extern int			 dm_debug;

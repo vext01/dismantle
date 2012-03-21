@@ -36,6 +36,11 @@ void dm_add_label(FILE *fp, char *node, char *label)
 	fprintf(fp, "\t\"%s\" [label=\"%s\"];\n", node, label);
 }
 
+void dm_colour_label(FILE *fp, char *node, char* colour)
+{
+	fprintf(fp, "\t\"%s\" [fillcolor = \"%s\" style = \"filled\"];\n", node, colour);
+}
+
 void dm_end_graph(FILE *fp)
 {
 	fprintf(fp, "}\n");
@@ -54,5 +59,6 @@ dm_display_graph(char *filename)
 
 	if (asprintf(&sys_buf, "dot -Txlib %s &", filename) != -1)
 		system(sys_buf);
+	free(sys_buf);
 }
 

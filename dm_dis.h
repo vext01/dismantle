@@ -33,5 +33,6 @@ int			dm_cmd_dis_noargs(char **args);
 int			dm_cmd_bits(char **args);
 int			dm_cmd_bits_noargs(char **args);
 NADDR			dm_get_jump_target(struct ud ud);
+NADDR			dm_get_operand_lval(struct ud ud, int op, int offset, int chkfar);
 int			dm_cmd_dis_func(char **args);
 #endif

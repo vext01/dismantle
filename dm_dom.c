@@ -97,6 +97,8 @@ dm_dom(struct dm_cfg_node *cfg)
 		for (i = 1; i < p_length; i++) {
 			node = (struct dm_cfg_node*)rpost[i];
 
+			/*new_idom = node->parents[0];
+			j = 0;*/
 			/* new_idom = first processed parent of node */
 			for (j = 0; j < node->p_count; j++)
 				if (node->parents[j]->visited) {
@@ -146,7 +148,7 @@ dm_dom_frontiers()
 	int i = 0, j = 0, duplicate = 0;
 
 	/* For all nodes */
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p = p_head; p != NULL; p = p->next) {
 		node = (struct dm_cfg_node*)p->ptr;
 		/* For all parents of node */
 		for (i = 0; (i < node->p_count) && (node->p_count > 1); i++) {
@@ -170,6 +172,13 @@ dm_dom_frontiers()
 				runner = runner->idom;
 			}
 		}
+		/*printf("Dominance frontier set of %d = [", node->rpost);
+		for (i = 0; i < node->df_count; i++) {
+			printf("%d", node->df_set[i]->rpost);
+			if (i != node->df_count - 1)
+				printf(", ");
+		}
+		printf("]\n");*/
 	}
 
 
@@ -181,7 +190,7 @@ dm_dom_frontiers()
 void
 dm_dom_frontiers_free()
 {
-	for (p = p_head; (p->ptr != NULL) && (p->next != NULL); p = p->next)
+	for (p = p_head; p != NULL; p = p->next)
 		free(((struct dm_cfg_node*)p->ptr)->df_set);
 }
 
@@ -197,7 +206,7 @@ dm_graph_dom()
 
 	if (!fp) return;
 
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p = p_head; p != NULL; p = p->next) {
 		node = (struct dm_cfg_node*)(p->ptr);
 
 		asprintf(&itoa1, "%d", node->post);

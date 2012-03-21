@@ -16,9 +16,10 @@
 #define _GNU_SOURCE
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
-#include "../../udis86/libudis86/syn.c"
-#include "../../udis86/libudis86/decode.h"
-#include "../../udis86/libudis86/syn-intel.c"
+
+//extern void mkasm(struct ud* u, const char* fmt, ...);
+//extern void opr_cast(struct ud* u, struct ud_operand* op);
+//extern const char* ud_reg_tab[];
 
 extern struct dm_instruction_se *instructions;
 extern struct ptrs		*p_head;
@@ -62,7 +63,7 @@ dm_cmd_ssa(char **args)
 	dm_print_ssa();
 
 	/* Free all memory used */
-	dm_ssa_free();
+	dm_free_ssa();
 
 	/* Free dominance frontier sets */
 	dm_dom_frontiers_free();
@@ -136,9 +137,9 @@ merge(struct ptrs *left, struct ptrs *right)
 	struct dm_cfg_node *left_p = NULL, *right_p = NULL;
 	if (left) left_p = (struct dm_cfg_node*)left->ptr;
 	if (right) right_p = (struct dm_cfg_node*)right->ptr;
-	if ((left == NULL) || (left_p == NULL))
+	if (left == NULL)
 		return right;
-	else if ((right == NULL) || (right_p == NULL))
+	else if (right == NULL)
 		return left;
 	else if (left_p->start > right_p->start)
 		return merge(right, left);
@@ -164,111 +165,174 @@ split(struct ptrs *list)
 }
 
 /*
- * Print ssa assembler of function
+ * Print ssa assembler of all blocks
  */
 void
 dm_print_ssa()
 {
-	int				 i = 0, j = 0, k = 0;
-	int				 colour_set = 0, duplicate = 0;
-	struct dm_cfg_node		*node = NULL, *found_node = NULL;
-	struct dm_dwarf_sym_cache_entry	*sym = NULL;
-	struct instruction		*insn = NULL;
-	NADDR				 addr = 0;
-	char				*hex;
+	int				 i = 0;
+	struct dm_cfg_node		*node = NULL;
 
 	/* Sort blocks in order of starting address */
-	mergeSort(p_head);
+	p_head = mergeSort(p_head);
 
 	/* Print blocks in ssa assembler */
 	for (p = p_head; (p != NULL); p = p->next) {
 		node = (struct dm_cfg_node*)p->ptr;
 		/* Print header */
-		if (dm_dwarf_find_sym_at_offset(node->start, &sym) == DM_OK)
-			printf("%sBlock %d (%s):\n%s", ANSII_LIGHTBLUE,
-			    node->post, sym->name, ANSII_WHITE);
-		else
-			printf("%sBlock %d:\n%s", ANSII_LIGHTBLUE, node->post,
-			    ANSII_WHITE);
+		dm_print_block_header(node);
 		/* Print phi nodes */
 		for (i = 0; i < node->pf_count; i++) {
-			printf("%s                                  "
-			    "mov %s_%d, phi(", ANSII_GREEN,
-			    ud_reg_tab[node->phi_functions[i].var - 1],
-			    node->phi_functions[i].index);
-			for (j = 0; j < node->phi_functions[i].arguments; j++){
-				duplicate = 0;
-				for (k = 0; k < node->phi_functions[i].arguments; k++) {
-					if ((node->phi_functions[i].indexes[j]
-					    == node->phi_functions[i].indexes[k]) &&
-					    (j != k) && (k > j))
-						duplicate = 1;
-				}
-				if (!duplicate) {
-					printf("%s_%d",
-					    ud_reg_tab[node->phi_functions[i].var - 1],
-					    node->phi_functions[i].indexes[j]);
-					if (j != node->phi_functions[i].arguments - 1)
-						printf(", ");
-				}
-			}
-			printf(")%s\n", ANSII_WHITE);
+			dm_phi_remove_duplicates(&node->phi_functions[i]);
+			dm_print_phi_function(&node->phi_functions[i]);
+			printf("\n");
 		}
 		/* Print standard instructions */
 		for (i = 0; i < node->i_count; i++) {
-			insn = node->instructions[i];
-			/* Translate into ssa assembler */
-			dm_translate_intel_ssa(insn);
+			dm_print_ssa_instruction(node->instructions[i]);
+			printf("\n");
+		}
+	}
+}
 
-			if ((insn->ud.br_far) || (insn->ud.br_near) ||
-			    (instructions[insn->ud.mnemonic].jump)) {
-				/* jumps and calls are yellow */
-				printf(ANSII_YELLOW);
-				colour_set = 1;
-			}
-			else if ((insn->ud.mnemonic == UD_Iret) ||
-			    (insn->ud.mnemonic == UD_Iretf)) {
-				/* Returns are red */
-				printf(ANSII_RED);
-				colour_set = 1;
-			}
+/*
+ * Print the header of a CFG block
+ */
+int
+dm_print_block_header(struct dm_cfg_node *node)
+{
+	int length = 0;
+	struct dm_dwarf_sym_cache_entry *sym = NULL;
+	if (dm_dwarf_find_sym_at_offset(node->start, &sym) == DM_OK)
+		length += printf("%sBlock %d (%s):\n%s", ANSII_LIGHTBLUE, node->post,
+		    sym->name, ANSII_WHITE);
+	else
+		length += printf("%sBlock %d:\n%s", ANSII_LIGHTBLUE, node->post,
+		    ANSII_WHITE);
+	return length;
+}
 
-			printf("  ");
-			addr = insn->ud.pc - ud_insn_len(&(insn->ud));
-			printf(NADDR_FMT, addr);
-			hex = ud_insn_hex(&(insn->ud));
-			printf(": %-20s%s", hex, insn->ud.insn_buffer);
-			/* If possible print target of jumps and calls as a
-			 * block number or function name */
-			if (instructions[insn->ud.mnemonic].jump ||
-			    (insn->ud.mnemonic == UD_Icall))
-				addr = dm_get_jump_target(insn->ud);
+/*
+ * Print a phi function
+ */
+int
+dm_print_phi_function(struct phi_function *phi)
+{
+	int	 i = 0, length = 0, length2 = 0, newlines = 0;
+	char	*temp = NULL, *temp2 = NULL;
 
-			if ((instructions[insn->ud.mnemonic].jump) &&
-			    (found_node = dm_find_cfg_node_starting(addr))) {
-				if (insn->cast[0])
-					printf("\t");
-				else
-					printf("\t\t");
-				printf("(Block %d)\n", found_node->post);
-			}
-			else if ((insn->ud.mnemonic == UD_Icall) &&
-			    (dm_dwarf_find_sym_at_offset(addr, &sym) == DM_OK)) {
-				if (insn->cast[0])
-					printf("\t");
-				else
-					printf("\t\t");
-				printf("(%s)\n", sym->name);
-			}
-			else
-				printf("\n");
-			/* Set colour back to white if required */
-			if (colour_set) {
-				printf(ANSII_WHITE);
-				colour_set = 0;
+	printf("%s", ANSII_GREEN);
+	length2 += asprintf(&temp, "%39smov %s_%d, phi(", "", ud_reg_tab[phi->var - 1], phi->index);
+
+	for (i = 0; i < phi->arguments; i++){
+		temp2 = temp;
+		length2 += asprintf(&temp, "%s%s_%d", temp, ud_reg_tab[phi->var - 1], phi->indexes[i]);
+		free(temp2);
+		if (i != phi->arguments - 1) {
+			temp2 = temp;
+			length2 += asprintf(&temp, "%s, ", temp);
+			free(temp2);
+			if (length2 > 200) {
+				printf("%-81s\n", temp);
+				free(temp);
+				asprintf(&temp, "%43s", "");
+				length2 = 0;
+				newlines++;
 			}
 		}
 	}
+	temp2 = temp;
+	asprintf(&temp, "%s)", temp);
+	free(temp2);
+	length += printf("%-81s", temp);
+	printf(ANSII_WHITE);
+	free(temp);
+	return newlines;
+}
+
+/*
+ * Since we generate one argument for every parent of a node in the phi
+ * function, some arguments may be duplicates of each other. Therefore we
+ * must remove them.
+ */
+void
+dm_phi_remove_duplicates(struct phi_function *phi)
+{
+	int i = 0, j = 0, duplicate = 0;
+	int arguments = 0, *indexes = NULL;
+	for (i = 0; i < phi->arguments; i++) {
+		duplicate = 0;
+		for (j = 0; j < phi->arguments; j++)
+			if ((phi->indexes[i] == phi->indexes[j]) && (i != j) && (j > i))
+				duplicate = 1;
+		if (!duplicate) {
+			indexes = realloc(indexes, ++arguments * sizeof(int));
+			indexes[arguments - 1] = phi->indexes[i];
+		}
+	}
+	free(phi->indexes);
+	phi->indexes = indexes;
+	phi->arguments = arguments;
+}
+
+/*
+ * Print an instruction
+ */
+int
+dm_print_ssa_instruction(struct instruction *insn)
+{
+	struct dm_dwarf_sym_cache_entry *sym = NULL;
+	struct dm_cfg_node		*found_node = NULL;
+	NADDR				 addr = 0;
+	char				*hex = NULL, *temp = NULL;
+	int				 colour_set = 0, length = 0;
+	/* Translate into ssa assembler */
+	dm_translate_intel_ssa(insn);
+
+	if ((insn->ud.br_far) || (insn->ud.br_near) ||
+	    (instructions[insn->ud.mnemonic].jump)) {
+		/* jumps and calls are yellow */
+		printf(ANSII_BROWN);
+		colour_set = 1;
+	}
+	else if ((insn->ud.mnemonic == UD_Iret) ||
+	    (insn->ud.mnemonic == UD_Iretf)) {
+		/* Returns are red */
+		printf(ANSII_RED);
+		colour_set = 1;
+	}
+
+	length += printf("  ");
+	addr = insn->ud.pc - ud_insn_len(&(insn->ud));
+	length += printf(NADDR_FMT, addr);
+	hex = ud_insn_hex(&(insn->ud));
+	/* If possible print target of jumps and calls as a block number or
+	 * function name */
+	if (instructions[insn->ud.mnemonic].jump ||
+	    (insn->ud.mnemonic == UD_Icall))
+		addr = dm_get_jump_target(insn->ud);
+
+	if ((instructions[insn->ud.mnemonic].jump) &&
+	    (found_node = dm_find_cfg_node_starting(addr))) {
+		asprintf(&temp, "%s (Block %d)", insn->ud.insn_buffer, found_node->post);
+		length += printf(": %-25s%-40s  ", hex, temp);
+		free(temp);
+	}
+	else if ((insn->ud.mnemonic == UD_Icall) &&
+	    (dm_dwarf_find_sym_at_offset(addr, &sym) == DM_OK)) {
+		asprintf(&temp, "%s (%s)", insn->ud.insn_buffer, sym->name);
+		length += printf(": %-25s%-40s  ", hex, temp);
+		free(temp);
+	}
+	else
+		length += printf(": %-25s%-40s  ", hex, insn->ud.insn_buffer);
+
+	/* Set colour back to white if required */
+	if (colour_set) {
+		printf(ANSII_WHITE);
+		colour_set = 0;
+	}
+	return 0;
 }
 
 /*
@@ -361,7 +425,10 @@ dm_rename_variables(struct dm_cfg_node *n)
 		insn = malloc(sizeof(struct instruction));
 		insn->ud = ud;
 		memcpy(insn->index, index, sizeof(index));
-		/* Add instruction to blocks list */
+		insn->constraints = NULL;
+		insn->c_counts = NULL;
+		insn->d_count = 0;
+		/* Add instruction to block's list */
 		n->instructions =
 		    realloc(n->instructions, sizeof(void*) * ++n->i_count);
 		n->instructions[n->i_count - 1] = insn;
@@ -382,7 +449,7 @@ dm_rename_variables(struct dm_cfg_node *n)
 		}
 	}
 	/* Call this function on all children (in dom tree) of this node */
-	for (p_iter = p_head; p_iter->ptr != NULL; p_iter = p_iter->next) {
+	for (p_iter = p_head; p_iter != NULL; p_iter = p_iter->next) {
 		node = (struct dm_cfg_node*)p_iter->ptr;
 		if ((node->idom == n) && (node != n))
 			dm_rename_variables(node);
@@ -655,10 +722,11 @@ gen_operand_ssa(struct ud* u, struct ud_operand* op, int syn_cast, int *index)
 void
 dm_place_phi_functions()
 {
-	struct dm_cfg_node	**W = NULL, *n = NULL, *dn = NULL, **B = NULL;
+	struct dm_cfg_node	**W = NULL, *n = NULL, *dn = NULL;//, **B = NULL;
 	unsigned int		  i = 0;
 	int			  j = 0, k = 0;
-	int			  w_size = 0, duplicate = 0, b_size = 0;
+	int			  w_size = 0, duplicate = 0;//, b_size = 0;
+
 	/* For each variable */
 	for (i = 0; i < UD_OP_CONST + 1; i++) {
 		/* Build a worklist W */
@@ -670,18 +738,18 @@ dm_place_phi_functions()
 		/* While the worklist is not empty */
 		while (w_size) {
 			/* Find a node n that hasn't already been checked */
-			while (w_size &&
+			/*while (w_size &&
 			    dm_array_contains(B, b_size, W[w_size -1]))
-				w_size--;
-			if (!w_size)
-				break;
+				w_size--;*/
+			/*if (!w_size)
+				break;*/
 			/* Remove node n from W */
 			n = W[w_size - 1];
 			W = realloc(W, --w_size * sizeof(void*));
 			/* Add n to blacklist so we dont check it twice or get
 			 * stuck in an infinite loop */
-			B = realloc(B, ++b_size * sizeof(void*));
-			B[b_size - 1] = n;
+			/*B = realloc(B, ++b_size * sizeof(void*));
+			B[b_size - 1] = n;*/
 			/* For each node dn in DF of n */
 			for (j = 0; j < n->df_count; j++) {
 				dn = (struct dm_cfg_node*)n->df_set[j];
@@ -710,9 +778,12 @@ dm_place_phi_functions()
 					dn->phi_functions[dn->pf_count - 1].arguments = dn->p_count;
 					dn->phi_functions[dn->pf_count - 1].indexes = malloc(dn->p_count * sizeof(int));
 					dn->phi_functions[dn->pf_count - 1].index = 0;
+					dn->phi_functions[dn->pf_count - 1].constraints = NULL;
+					dn->phi_functions[dn->pf_count - 1].c_counts = NULL;
+					dn->phi_functions[dn->pf_count - 1].d_count = 0;
 				}
 				/* Add dn to worklist */
-				if (!dm_array_contains(W, w_size, dn)) {
+				if (dn != n) { //!dm_array_contains(W, w_size, dn)) {
 					W = realloc(W, ++w_size *
 					    sizeof(void*));
 					W[w_size - 1] = dn;
@@ -720,6 +791,8 @@ dm_place_phi_functions()
 			}
 		}
 	}
+	//free(B);
+	free(W);
 }
 
 /*
@@ -748,7 +821,7 @@ dm_ssa_find_var_defs()
 	int			 duplicate = 0, i =0;
 
 	/* For all nodes n */
-	for (p = p_head; p->ptr != NULL; p = p->next) {
+	for (p = p_head; p != NULL; p = p->next) {
 		n = (struct dm_cfg_node*)p->ptr;
 		/* For all statements in node n */
 		for (dm_seek(n->start); ud.pc - ud_insn_len(&ud) != n->end;) {
@@ -813,7 +886,7 @@ dm_ssa_index_stack_pop(enum ud_type reg)
 }
 
 /*
- * Initialise the register indexing structure array
+ * Initialise the register indexing struct array
  */
 void
 dm_ssa_index_init()
@@ -834,5 +907,31 @@ dm_ssa_index_init()
 		indices[i].phi_nodes = NULL;
 		indices[i].pn_count = 0;
 	}
+}
+
+void
+dm_free_ssa()
+{
+	struct dm_cfg_node	*node = NULL;
+	int			 i = 0;
+
+	for (p = p_head; p != NULL; p = p->next) {
+		node = (struct dm_cfg_node*)p->ptr;
+		free(node->def_vars);
+		for (i = 0; i < node->pf_count; i++) {
+			free(node->phi_functions[i].indexes);
+		}
+		free(node->phi_functions);
+		for (i = 0; i < node->i_count; i ++) {
+			free(node->instructions[i]);
+		}
+		free(node->instructions);
+	}
+	for (i = 0; i < UD_OP_CONST + 1; i++) {
+		free(indices[i].stack);
+		free(indices[i].def_nodes);
+		free(indices[i].phi_nodes);
+	}
+	free(indices);
 }
 

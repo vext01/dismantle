@@ -160,35 +160,46 @@ dm_cmd_dis_noargs(char **args)
 	return (0);
 }
 
-
 NADDR
 dm_get_jump_target(struct ud ud)
 {
+	return dm_get_operand_lval(ud, 0, 0, 1);
+}
+
+
+NADDR
+dm_get_operand_lval(struct ud ud, int op, int offset, int chkfar)
+{
 	NADDR	target;
-	switch (ud.operand[0].size) {
+	int	switch_target = 0;
+	if (offset)
+		switch_target = ud.operand[op].offset;
+	else
+		switch_target = ud.operand[op].size;
+	switch (switch_target) {
 		case 8:
-			if (ud.br_far)
-				target = ud.operand[0].lval.ubyte;
+			if (ud.br_far || !chkfar)
+				target = ud.operand[op].lval.ubyte;
 			else
-				target = ud.pc + ud.operand[0].lval.sbyte;
+				target = ud.pc + ud.operand[op].lval.sbyte;
 			break;
 		case 16:
-			if (ud.br_far)
-				target = ud.operand[0].lval.uword;
+			if (ud.br_far || !chkfar)
+				target = ud.operand[op].lval.uword;
 			else
-				target = ud.pc + ud.operand[0].lval.sword;
+				target = ud.pc + ud.operand[op].lval.sword;
 			break;
 		case 32:
-			if (ud.br_far)
-				target = ud.operand[0].lval.udword;
+			if (ud.br_far || !chkfar)
+				target = ud.operand[op].lval.udword;
 			else
-				target = ud.pc + ud.operand[0].lval.sdword;
+				target = ud.pc + ud.operand[op].lval.sdword;
 			break;
 		case 64:
-			if (ud.br_far)
-				target = ud.operand[0].lval.uqword;
+			if (ud.br_far || !chkfar)
+				target = ud.operand[op].lval.uqword;
 			else
-				target = ud.pc + ud.operand[0].lval.sqword;
+				target = ud.pc + ud.operand[op].lval.sqword;
 			break;
 		default:
 			fprintf(stderr, "unknown operand size");
