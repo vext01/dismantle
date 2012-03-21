@@ -1,0 +1,9 @@
+
+
+Build udis86:
+
+gmake udis86
+
+Build dismantle:
+
+gmake 
