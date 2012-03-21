@@ -4,8 +4,6 @@ Makefile
 .deps
 .libs
 *.pyc
-aclocal.m4
-autom4te.cache/
 docs/manual/manual.html
 libtool
 libudis86/itab.c
