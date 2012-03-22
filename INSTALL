@@ -1,9 +1,9 @@
-On Linux, you can normally just use make instead of gmake, as this is default.
+On Linux:
 
-Build udis86:
+  make udis86
+  make static
 
-gmake udis86
+On other systems:
 
-Build dismantle:
-
-gmake 
+  gmake udis86
+  gmake 
