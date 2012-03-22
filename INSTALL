@@ -1,4 +1,4 @@
-
+On Linux, you can normally just use make instead of gmake, as this is default.
 
 Build udis86:
 
