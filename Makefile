@@ -13,14 +13,15 @@ udis86: udis86/Makefile ${UDIS86_ARCHIVE}
 
 .PHONY: ${UDIS86_ARCHIVE}
 
-dismantle: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o dm_ssa.o \
-    dm_dwarf.o
+DISMANTLE_DEPS=dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
+	       dm_ssa.o dm_dwarf.o
+
+dismantle: ${DISMANTLE_DEPS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
 		    dm_ssa.o dm_dwarf.o ${UDIS86_ARCHIVE}
 
-static: dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o dm_ssa.o \
-    dm_dwarf.o
+static: ${DISMANTLE_DEPS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
 		    dm_ssa.o dm_dwarf.o /usr/lib/libdwarf.a ${UDIS86_ARCHIVE}
@@ -37,13 +38,13 @@ dm_cfg.o: dm_cfg.c dm_cfg.h dm_dis.o
 dm_gviz.o: dm_gviz.c dm_gviz.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_gviz.o dm_gviz.c
 
-dm_dom.o: dm_dom.c dm_dom.h dm_cfg.o dm_gviz.o
+dm_dom.o: dm_dom.c dm_dom.h dm_cfg.h dm_gviz.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dom.o dm_dom.c
 
-dm_ssa.o: dm_ssa.c dm_ssa.h dm_dom.o
+dm_ssa.o: dm_ssa.c dm_ssa.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_ssa.o dm_ssa.c
 
-dm_dwarf.o: dm_dwarf.c dm_dwarf.h
+dm_dwarf.o: dm_dwarf.c dm_dwarf.h dm_elf.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dwarf.o dm_dwarf.c
 
 clean:
