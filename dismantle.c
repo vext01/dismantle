@@ -33,6 +33,10 @@ uint8_t				 colours_on = 1;
 char				 *debug_names[] = {
 				    "error", "warn", "info", "debug"};
 
+int	dm_setting_cmp(struct dm_setting *e1, struct dm_setting *e2);
+RB_HEAD(dm_settings_tree, dm_setting) head = RB_INITIALIZER(&head);
+RB_GENERATE(dm_settings_tree, dm_setting, entry, dm_setting_cmp);
+
 char *banner =
 "        	       ___                            __  __   \n"
 "         	  ____/ (_)________ ___  ____ _____  / /_/ /__ \n"
@@ -493,5 +497,27 @@ dm_cmd_ansii_noargs(char **args)
 {
 	(void) args;
 	printf("\n  %d\n\n", colours_on);
+	return (DM_OK);
+}
+
+int
+dm_setting_cmp(struct dm_setting *e1, struct dm_setting *e2)
+{
+	return (strcmp(e1->name, e2->name));
+}
+
+int
+dm_init_settings()
+{
+	/* XXX xmalloc, xstrdup */
+	struct dm_setting		*s;
+
+	if ((s = malloc(sizeof(struct dm_setting))) == NULL)
+		DPRINTF(DM_D_WARN, "malloc");
+	s->name = strdup("test");
+	s->type = DM_SETTING_INT;
+	s->val.ival = 1;
+	s->help = strdup("This is a test");
+
 	return (DM_OK);
 }
