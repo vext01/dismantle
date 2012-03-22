@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "dm_elf.h"
+#include "tree.h"
 
 #define PACKAGE_VERSION		"0.1"
 
@@ -104,6 +105,19 @@ struct dm_file_info {
 	uint8_t		dwarf;
 	uint8_t		bits; /* 32 or 64 binary */
 	struct stat	stat;
+};
+
+struct dm_setting {
+	RB_ENTRY(dm_setting)	 entry;
+	char			*name;
+	int			 type;
+#define DM_SETTING_INT		(0)
+#define DM_SETTING_STR		(1)
+	union dm_setting_val {
+		int		 ival;
+		char		*sval;
+	} val;
+	char			*help;
 };
 
 extern struct dm_file_info	file_info;

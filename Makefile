@@ -14,17 +14,17 @@ udis86: udis86/Makefile ${UDIS86_ARCHIVE}
 .PHONY: ${UDIS86_ARCHIVE}
 
 DISMANTLE_DEPS=dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
-	       dm_ssa.o dm_dwarf.o
+	       dm_ssa.o dm_dwarf.o dm_util.o
 
 dismantle: ${DISMANTLE_DEPS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
-		    dm_ssa.o dm_dwarf.o ${UDIS86_ARCHIVE}
+		    dm_ssa.o dm_dwarf.o dm_util.o ${UDIS86_ARCHIVE}
 
 static: ${DISMANTLE_DEPS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o dismantle \
 		dismantle.c dm_dis.o dm_elf.o dm_cfg.o dm_gviz.o dm_dom.o \
-		    dm_ssa.o dm_dwarf.o /usr/lib/libdwarf.a ${UDIS86_ARCHIVE}
+		    dm_ssa.o dm_dwarf.o dm_util.o /usr/lib/libdwarf.a ${UDIS86_ARCHIVE}
 
 dm_dis.o: dm_dis.c dm_dis.h common.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dis.o dm_dis.c
@@ -46,6 +46,9 @@ dm_ssa.o: dm_ssa.c dm_ssa.h
 
 dm_dwarf.o: dm_dwarf.c dm_dwarf.h dm_elf.h
 	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_dwarf.o dm_dwarf.c
+
+dm_util.o: dm_util.c dm_util.h
+	${CC} -c ${CPPFLAGS} ${CFLAGS} -o dm_util.o dm_util.c
 
 clean:
 	rm -f *.o *.dot dismantle && cd udis86 && ${MAKE} clean

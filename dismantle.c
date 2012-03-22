@@ -27,11 +27,16 @@
 #include "dm_dom.h"
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
+#include "dm_util.h"
 
 uint8_t				 colours_on = 1;
 
 char				 *debug_names[] = {
 				    "error", "warn", "info", "debug"};
+
+int	dm_setting_cmp(struct dm_setting *e1, struct dm_setting *e2);
+RB_HEAD(dm_settings_tree, dm_setting) head = RB_INITIALIZER(&head);
+RB_GENERATE(dm_settings_tree, dm_setting, entry, dm_setting_cmp);
 
 char *banner =
 "        	       ___                            __  __   \n"
@@ -62,6 +67,11 @@ int	dm_cmd_debug(char **args);
 int	dm_cmd_debug_noargs(char **args);
 int	dm_cmd_ansii_noargs(char **args);
 int	dm_cmd_ansii(char **args);
+int	dm_cmd_set_noargs(char **args);
+int	dm_cmd_set_one_arg(char **args);
+int	dm_cmd_set_two_args(char **args);
+int	dm_settings_init();
+int	dm_clean_settings();
 
 struct dm_cmd_sw {
 	char			*cmd;
@@ -86,6 +96,9 @@ struct dm_cmd_sw {
 	{"info", 0, dm_cmd_info},	{"i", 0, dm_cmd_info},
 	{"offset", 1, dm_cmd_offset},
 	{"pht", 0, dm_cmd_pht},
+	{"set", 0, dm_cmd_set_noargs},
+	{"set", 1, dm_cmd_set_one_arg},
+	{"set", 2, dm_cmd_set_two_args},
 	{"seek", 1, dm_cmd_seek},	{"s", 1, dm_cmd_seek},
 	{"sht", 0, dm_cmd_sht},
 	{"ssa", 0, dm_cmd_ssa},
@@ -110,6 +123,7 @@ struct dm_help_rec {
 	{"  hex/px [len]",	"Dump hex (64 or 'len' bytes)"},
 	{"  info/i",		"Show file information"},
 	{"  pht",		"Show program header table"},
+	{"  set [var] [val]",	"Show/ammend settings"},
 	{"  seek/s addr",	"Seek to an address"},
 	{"  sht",		"Show section header table"},
 	{"  ssa",		"Output SSA form"},
@@ -407,6 +421,9 @@ main(int argc, char **argv)
 		goto clean;
 	}
 
+	/* initialise settings */
+	dm_settings_init();
+
 	/* check a binary was supplied */
 	if (argc == optind) {
 		DPRINTF(DM_D_ERROR, "Missing filename\n");
@@ -446,6 +463,7 @@ main(int argc, char **argv)
 clean:
 	dm_clean_elf();
 	dm_clean_dwarf();
+	dm_clean_settings();
 
 	if (file_info.fptr != NULL)
 		fclose(file_info.fptr);
@@ -493,5 +511,161 @@ dm_cmd_ansii_noargs(char **args)
 {
 	(void) args;
 	printf("\n  %d\n\n", colours_on);
+	return (DM_OK);
+}
+
+int
+dm_setting_cmp(struct dm_setting *e1, struct dm_setting *e2)
+{
+	return (strcmp(e1->name, e2->name));
+}
+
+int
+dm_setting_add_int(char *name, int default_val, char *help)
+{
+	struct dm_setting		*s;
+
+	s = xmalloc(sizeof(struct dm_setting));
+
+	s->name = xstrdup(name);
+	s->type = DM_SETTING_INT;
+	s->val.ival = default_val;
+	s->help = xstrdup(help);
+
+	RB_INSERT(dm_settings_tree, &head, s);
+
+	return (DM_OK);
+}
+
+int
+dm_setting_add_str(char *name, char *default_val, char *help)
+{
+	struct dm_setting		*s;
+
+	s = xmalloc(sizeof(struct dm_setting));
+
+	s->name = xstrdup(name);
+	s->type = DM_SETTING_STR;
+	s->val.sval = xstrdup(default_val);
+	s->help = xstrdup(help);
+
+	RB_INSERT(dm_settings_tree, &head, s);
+
+	return (DM_OK);
+}
+
+int
+dm_settings_init()
+{
+	dm_setting_add_int("cfg.verbose", 0,
+	    "Control flow graph verbosity (0 = postorder, 1=address, 2=full)");
+	dm_setting_add_str("cfg.outfile", "XXX", "CFG output file");
+	dm_setting_add_str("cfg.gvfile", "XXX", "Graphviz CFG output file");
+	dm_setting_add_int("pref.ansi", -1, "Use ANSI colour terminal");
+	dm_setting_add_int("arch.bits", -1, "64 or 32 bit architecture");
+	dm_setting_add_int("dbg.level", -1, "Debug level");
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_set_noargs(char **args)
+{
+	struct dm_setting	*s;
+
+	(void) args;
+
+	RB_FOREACH(s, dm_settings_tree, &head) {
+		switch(s->type) {
+		case DM_SETTING_INT:
+			printf("%s=%d\n", s->name, s->val.ival);
+			break;
+		case DM_SETTING_STR:
+			printf("%s=\"%s\"\n", s->name, s->val.sval);
+			break;
+		default:
+			DPRINTF(DM_D_WARN, "Unknown config type");
+			break;
+		};
+	}
+
+	return (DM_OK);
+}
+
+int
+dm_find_setting(char *name, struct dm_setting **s)
+{
+	struct dm_setting	find;
+
+	find.name = name;
+
+	if ((*s = RB_FIND(dm_settings_tree, &head, &find)) == NULL) {
+		DPRINTF(DM_D_WARN, "No such setting: %s\n", name);
+		return (DM_FAIL);
+	}
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_set_one_arg(char **args)
+{
+	struct dm_setting		*s;
+
+	if (dm_find_setting(args[0], &s) == DM_FAIL)
+		return (DM_FAIL);
+
+	switch (s->type) {
+	case DM_SETTING_INT:
+		printf("%s=%d\n%s\n", s->name, s->val.ival, s->help);
+		break;
+	case DM_SETTING_STR:
+		printf("%s=\"%s\"\n%s\n", s->name, s->val.sval, s->help);
+		break;
+	default:
+		DPRINTF(DM_D_WARN, "Unknown setting type");
+		return (DM_FAIL);
+		break;
+	};
+
+	return (DM_OK);
+}
+
+int
+dm_cmd_set_two_args(char **args)
+{
+	struct dm_setting		*s;
+
+	if (dm_find_setting(args[0], &s) == DM_FAIL)
+		return (DM_FAIL);
+
+	switch (s->type) {
+	case DM_SETTING_INT:
+		s->val.ival = atoi(args[1]);
+		break;
+	case DM_SETTING_STR:
+		free(s->val.sval);
+		s->val.sval = xstrdup(args[1]);
+		break;
+	default:
+		DPRINTF(DM_D_WARN, "Unknown setting type");
+		return (DM_FAIL);
+		break;
+	};
+
+	return (DM_OK);
+}
+
+int
+dm_clean_settings()
+{
+	struct dm_setting	*s;
+
+	RB_FOREACH(s, dm_settings_tree, &head) {
+		free(s->name);
+		if (s->type ==  DM_SETTING_STR)
+			free(s->val.sval);
+	}
+
 	return (DM_OK);
 }
