@@ -17,6 +17,8 @@
 #include "dm_ssa.h"
 #include "dm_dwarf.h"
 
+void opr_cast(struct ud* u, struct ud_operand* op);
+
 //extern void mkasm(struct ud* u, const char* fmt, ...);
 //extern void opr_cast(struct ud* u, struct ud_operand* op);
 //extern const char* ud_reg_tab[];
@@ -92,13 +94,15 @@ dm_ssa_free()
 
 	for (p = p_head; p != NULL; p = p->next) {
 		node = (struct dm_cfg_node*)p->ptr;
-		for (i = 0; i < node->pf_count; i++)
-			free(node->phi_functions[i].indexes);
-		free(node->phi_functions);
-		for (i = 0; i < node->i_count; i++)
-			free(node->instructions[i]);
-		free(node->instructions);
-		free(node->def_vars);
+		if (!node->nonlocal) {
+			for (i = 0; i < node->pf_count; i++)
+				free(node->phi_functions[i].indexes);
+			free(node->phi_functions);
+			for (i = 0; i < node->i_count; i++)
+				free(node->instructions[i]);
+			free(node->instructions);
+			free(node->def_vars);
+		}
 	}
 }
 
