@@ -33,8 +33,9 @@ struct dm_cfg_node {
 	NADDR			  end;
 	struct dm_cfg_node	**children;
 	struct dm_cfg_node	**parents;
-	int			  hell_node;
+	int			  c_count;
 	int			  p_count;
+	int			  nonlocal;
 	int			  visited;
 	int			  pre;     /* Pre-order position */
 	int			  post;    /* Post-order position */

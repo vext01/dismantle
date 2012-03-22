@@ -102,8 +102,8 @@ dm_check_cfg_consistency()
 					consistent = 1;
 			}
 			if (!consistent)
-				printf("No link from node %d to parent %d!\n",
-				    node->children[i]->post, node->post);
+				printf("No link from node %d (start addr "NADDR_FMT ") to parent %d!\n",
+				    node->children[i]->post, node->children[i]->start, node->post);
 		}
 		for (i = 0; i < node->p_count; i++) {
 			consistent = 0;
@@ -112,8 +112,8 @@ dm_check_cfg_consistency()
 					consistent = 1;
 			}
 			if (!consistent)
-				printf("No link from node %d to child %d!\n",
-				    node->parents[i]->post, node->post);
+				printf("No link from node %d (start addr "NADDR_FMT") to child %d (start addr "NADDR_FMT")!\n",
+				    node->parents[i]->post, node->parents[i]->start, node->post, node->start);
 		}
 	}
 }
@@ -221,8 +221,10 @@ dm_new_cfg_node(NADDR nstart, NADDR nend)
 	node->start = nstart;
 	node->end = nend;
 	node->children = calloc(1, sizeof(void*));
+	node->c_count = 0;
 	node->parents = NULL;
 	node->p_count = 0;
+	node->nonlocal = 0;
 	node->visited = 0;
 	node->pre = 0;
 	node->rpost = 0;
@@ -302,7 +304,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 				local_target = 0;
 		}
 
-		if (instructions[ud.mnemonic].jump && local_target) {
+		if (instructions[ud.mnemonic].jump) {
 			/* Get the target of the jump instruction */
 			target = dm_get_jump_target(ud);
 
@@ -317,16 +319,16 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			/* Check if we are jumping to the start of an already
 			 * existing block, if so use that as child of current
 			 * block */
-			if ((foundNode = dm_find_cfg_node_starting(target))
-			    != NULL) {
+			if (((foundNode = dm_find_cfg_node_starting(target))
+			    != NULL) && local_target) {
 				node->children[0] = foundNode;
 				dm_add_parent(foundNode, node);
 			}
 			/* Check if we are jumping to the *middle* of an
 			 * existing block, if so split it and use 2nd half as
 			 * child of current block */
-			else if ((foundNode = dm_find_cfg_node_containing(
-			    target)) != NULL) {
+			else if (((foundNode = dm_find_cfg_node_containing(
+			    target)) != NULL) && local_target) {
 				//printf("Found jump to middle of existing block\n");
 				/* We found a matching block. Now find address
 				 * before addr and split the block */
@@ -337,9 +339,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 				for (i = 0; i < node->children[0]->p_count; i++)
 					if (node->children[0]->parents[i] == node)
 						duplicate = 1;
-				/* I can't for the life of me figure out why I
-				 * wrote the first branch of this if statement,
-				 * but it seems to work! */
+				/* Node is recursive, make it it's own parent */
 				if (duplicate)
 					dm_add_parent(node->children[0],
 					    node->children[0]);
@@ -347,28 +347,60 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 					dm_add_parent(node->children[0], node);
 			}
 			/* This is a new block, so scan with a recursive call
-			 * to find it's start, end, and children */
-			else {
+			 * to find it's start, end, and children, assuming it's
+			 * a local block (inside the binary) */
+			else if (local_target) {
 				node->children[0] = dm_new_cfg_node(target, 0);
 				dm_add_parent(node->children[0], node);
 				dm_gen_cfg_block(node->children[0]);
 			}
-
-			/* Seek back to before we followed the jump */
-			dm_seek(addr);
-			read = ud_disassemble(&ud);
-
-			/* Check whether there was some sneaky splitting of the
-			 * block we're working on while we were away! */
-			if (node->end < addr) {
-				/* Now we must find the right block to continue
-				 * from */
-			//	printf("Node was split after recursive call!\n");
-				foundNode = dm_find_cfg_node_ending(addr);
-				if (foundNode != NULL) {
-					node = foundNode;
+			/* This target is outside of the binary. Just make a
+			 * basic block for it with and continue with a new
+			 * block from the next insn */
+			if (!local_target) {
+				if ((foundNode = dm_find_cfg_node_starting(target)) != NULL) {
+					dm_add_parent(foundNode, node);
+					node->children[0] = foundNode;
 				}
+				else {
+					/* New block starts and ends at target addr */
+					node->children[0] = dm_new_cfg_node(target, target);
+					dm_add_parent(node->children[0], node);
+					node->children[0]->nonlocal = 1;
+				}
+
+				/* New node has child starting at next insn */
+				dm_seek(addr);
+				read = ud_disassemble(&ud);
+
+				//printf("Found jump to non-local at " NADDR_FMT", target "NADDR_FMT". Next block starts at " NADDR_FMT "\n", 
+				  //  addr, target, ud.pc);
+				//node->children[0]->children =
+				 //   calloc(2, sizeof(void*));
+				node->children[0]->children =
+				    realloc(node->children[0]->children, (1 + ++(node->children[0]->c_count))*sizeof(void*));
+				node->children[0]->children[node->children[0]->c_count-1] =
+				    dm_new_cfg_node(ud.pc, 0);
+				node->children[0]->children[node->children[0]->c_count] = NULL;
+				dm_add_parent(node->children[0]->children[node->children[0]->c_count-1], node->children[0]);
+				dm_gen_cfg_block(node->children[0]->children[node->children[0]->c_count-1]);
 			}
+			else {
+				/* Seek back to before we followed the jump */
+				dm_seek(addr);
+				read = ud_disassemble(&ud);
+			}
+				/* Check whether there was some sneaky splitting of the
+				 * block we're working on while we were away! */
+				if (node->end < addr) {
+					/* Now we must find the right block to continue
+					 * from */
+				//	printf("Node was split after recursive call!\n");
+					foundNode = dm_find_cfg_node_ending(addr);
+					if (foundNode != NULL) {
+						node = foundNode;
+					}
+				}
 
 			/*
 			 * If the jump was a conditional, now we must
@@ -649,6 +681,8 @@ dm_graph_cfg()
 			dm_add_edge(fp, itoa1, itoa2);
 			if (node->children[c]->post > node->post)
 				dm_colour_label(fp, itoa2, "lightblue");
+			if (node->nonlocal)
+				dm_colour_label(fp, itoa1, "lightpink");
 			free(itoa2);
 		}
 		free(itoa1);
