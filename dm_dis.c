@@ -40,12 +40,19 @@ int
 dm_cmd_seek(char **args)
 {
 	NADDR				 to;
+	int				 ret = DM_FAIL;
 	struct dm_dwarf_sym_cache_entry	*sym;
+	GElf_Shdr			 shdr;
 
 	/* seeking to a section? */
-	if (args[0][0] == '.')
-		to = dm_find_section(args[0]);
-	else {
+	if (args[0][0] == '.') {
+		if ((dm_find_section(args[0], &shdr)) == DM_FAIL) {
+			DPRINTF(DM_D_WARN,
+			    "section non-existant: %s", args[0]);
+			goto clean;
+		}
+		to = shdr.sh_offset;
+	} else {
 		/* we first try to find a dwarf sym of that name */
 		if (dm_dwarf_find_sym(args[0], &sym) == DM_OK)
 			to = sym->offset;
@@ -54,7 +61,9 @@ dm_cmd_seek(char **args)
 	}
 
 	dm_seek(to);
-	return (DM_OK);
+	ret = DM_OK;
+clean:
+	return (ret);
 }
 
 /*

@@ -590,7 +590,7 @@ gen_operand_ssa(struct ud* u, struct ud_operand* op, int syn_cast, int *index)
 			int op_f = 0;
 
 			if (syn_cast)
-				opr_cast(u, op);
+				opr_cast(u, op); /* XXX fix warning */
 
 			mkasm(u, "[");
 

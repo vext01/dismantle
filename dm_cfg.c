@@ -424,18 +424,20 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 int
 dm_is_target_in_text(NADDR addr)
 {
-	int ret = 1;
-	NADDR start = 0, size = 0;
+	NADDR		start = 0, size = 0;
+	GElf_Shdr	shdr;
 
-	start = dm_find_section(".text");
-	size = dm_find_size(".text");
-	if ((start == -1) || (size == -1))
-		ret = 0;
-	else
-	if ((addr < start) || (addr >
-	    (start + size)))
-		ret = 0;
-	return ret;
+	if ((dm_find_section(".text", &shdr)) == DM_FAIL) {
+		return (0);
+	}
+
+	start = shdr.sh_offset;
+	size = shdr.sh_size;
+
+	if ((addr < start) || (addr > (start + size)))
+		return (0);
+
+	return (1);
 }
 
 struct dm_cfg_node *
@@ -636,7 +638,7 @@ dm_get_unvisited_node()
 void
 dm_graph_cfg()
 {
-	struct dm_dwarf_sym_cache_entry *sym = NULL;
+	/* struct dm_dwarf_sym_cache_entry *sym = NULL; */
         struct dm_cfg_node *node = NULL;
         FILE *fp = dm_new_graph("cfg.dot");
         char *itoa1 = NULL, *itoa2 = NULL;

@@ -213,7 +213,7 @@ dm_cmd_info(char **args)
 	(void) args;
 
 	printf("  %-16s %s\n", "Filename:", file_info.name);
-	printf("  %-16s " NADDR_FMT, "Size:", file_info.stat.st_size);
+	//printf("  %-16s " NADDR_FMT, "Size:", file_info.stat.st_size);
 	printf("  %-16s %hd\n", "Bits:", file_info.bits);
 	printf("  %-16s %s\n", "Ident:", file_info.ident);
 	printf("  %-16s %hd\n", "ELF:", file_info.elf);
@@ -375,6 +375,7 @@ int
 main(int argc, char **argv)
 {
 	int			ch, getopt_err = 0, getopt_exit = 0;
+	GElf_Shdr		shdr;
 
 	while ((ch = getopt(argc, argv, "ahx:v")) != -1) {
 		switch (ch) {
@@ -428,10 +429,12 @@ main(int argc, char **argv)
 	ud_set_syntax(&ud, UD_SYN_INTEL);
 
 	/* start at .text */
-	if (file_info.elf)
-		dm_seek(dm_find_section(".text"));
-	else
+	if (file_info.elf) {
+		dm_find_section(".text", &shdr);
+		dm_seek(shdr.sh_offset);
+	} else {
 		dm_seek(0);
+	}
 
 	dm_show_version();
 	dm_cmd_info(NULL);

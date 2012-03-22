@@ -72,14 +72,13 @@ dm_get_pht_info(int find)
 /*
  * get the offset of a section name
  */
-NADDR
-dm_find_section(char *find_sec)
+int
+dm_find_section(char *find_sec, GElf_Shdr *shdr)
 {
 	Elf_Scn			*sec;
 	size_t			 shdrs_idx;
-	GElf_Shdr		 shdr;
 	char			*sec_name;
-	NADDR			 ret = -1;
+	NADDR			 ret = DM_FAIL;
 
 	if (elf == NULL)
 		goto clean;
@@ -89,61 +88,22 @@ dm_find_section(char *find_sec)
 		goto clean;
 	}
 
+
 	sec = NULL ;
 	while ((sec = elf_nextscn(elf, sec)) != NULL) {
-		if (gelf_getshdr(sec, &shdr) != &shdr) {
+		if (gelf_getshdr(sec, shdr) != shdr) {
 			fprintf(stderr, "gelf_getshdr: %s", elf_errmsg(-1));
 			goto clean;
 		}
 
 		if ((sec_name =
-		    elf_strptr(elf, shdrs_idx, shdr.sh_name)) == NULL) {
+		    elf_strptr(elf, shdrs_idx, shdr->sh_name)) == NULL) {
 			fprintf(stderr, "elf_strptr: %s", elf_errmsg(-1));
 			goto clean;
 		}
 
 		if (strcmp(sec_name, find_sec) == 0) {
-			ret = shdr.sh_offset;
-			break;
-		}
-	}
-
-clean:
-	return (ret);
-}
-
-NADDR
-dm_find_size(char *find_sec)
-{
-	Elf_Scn			*sec;
-	size_t			 shdrs_idx;
-	GElf_Shdr		 shdr;
-	char			*sec_name;
-	NADDR			 ret = -1;
-
-	if (elf == NULL)
-		goto clean;
-
-	if (elf_getshdrstrndx(elf, &shdrs_idx) != 0) {
-		fprintf(stderr, "elf_getshdrsrtndx: %s", elf_errmsg(-1));
-		goto clean;
-	}
-
-	sec = NULL ;
-	while ((sec = elf_nextscn(elf, sec)) != NULL) {
-		if (gelf_getshdr(sec, &shdr) != &shdr) {
-			fprintf(stderr, "gelf_getshdr: %s", elf_errmsg(-1));
-			goto clean;
-		}
-
-		if ((sec_name =
-		    elf_strptr(elf, shdrs_idx, shdr.sh_name)) == NULL) {
-			fprintf(stderr, "elf_strptr: %s", elf_errmsg(-1));
-			goto clean;
-		}
-
-		if (strcmp(sec_name, find_sec) == 0) {
-			ret = shdr.sh_size;
+			ret = DM_OK;
 			break;
 		}
 	}

@@ -15,7 +15,10 @@
  */
 
 #define _GNU_SOURCE
+
 #include <stdlib.h>
+#include <unistd.h>
+
 #include "dm_gviz.h"
 
 FILE*

@@ -56,7 +56,7 @@ struct dm_pht_cache_entry {
 };
 
 struct dm_pht_type	*dm_get_pht_info(int find);
-NADDR			dm_find_section(char *find_sec);
+int			dm_find_section(char *find_sec, GElf_Shdr *shdr);
 NADDR			dm_find_size(char *find_sec);
 int			dm_init_elf();
 int			dm_make_pht_flag_str(int flags, char *ret);
