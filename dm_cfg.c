@@ -125,10 +125,6 @@ void
 dm_init_cfg()
 {
 	dm_instruction_se_init();
-
-	/* Initialise free list */
-	//p_head = calloc(1, sizeof(struct ptrs));
-	//p = p_head;
 }
 
 /*
@@ -296,7 +292,7 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 		 * new nodes as necessary
 		 *
 		 * Make sure the target is inside the .text
-		 * section, if not ignore it */
+		 * section */
 		local_target = 1;
 		if (instructions[ud.mnemonic].jump) {
 			target = dm_get_jump_target(ud);
@@ -329,7 +325,6 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 			 * child of current block */
 			else if (((foundNode = dm_find_cfg_node_containing(
 			    target)) != NULL) && local_target) {
-				//printf("Found jump to middle of existing block\n");
 				/* We found a matching block. Now find address
 				 * before addr and split the block */
 				node->children[0] = dm_split_cfg_block(
@@ -373,10 +368,6 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 				dm_seek(addr);
 				read = ud_disassemble(&ud);
 
-				//printf("Found jump to non-local at " NADDR_FMT", target "NADDR_FMT". Next block starts at " NADDR_FMT "\n", 
-				  //  addr, target, ud.pc);
-				//node->children[0]->children =
-				 //   calloc(2, sizeof(void*));
 				node->children[0]->children =
 				    realloc(node->children[0]->children, (1 + ++(node->children[0]->c_count))*sizeof(void*));
 				node->children[0]->children[node->children[0]->c_count-1] =
@@ -390,27 +381,24 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 				dm_seek(addr);
 				read = ud_disassemble(&ud);
 			}
-				/* Check whether there was some sneaky splitting of the
-				 * block we're working on while we were away! */
-				if (node->end < addr) {
-					/* Now we must find the right block to continue
-					 * from */
-				//	printf("Node was split after recursive call!\n");
-					foundNode = dm_find_cfg_node_ending(addr);
-					if (foundNode != NULL) {
-						node = foundNode;
-					}
+			/* Check whether there was some sneaky splitting of the
+			 * block we're working on while we were away! */
+			if (node->end < addr) {
+				/* Now we must find the right block to continue
+				 * from */
+				foundNode = dm_find_cfg_node_ending(addr);
+				if (foundNode != NULL) {
+					node = foundNode;
 				}
+			}
 
 			/*
 			 * If the jump was a conditional, now we must
 			 * follow the other leg of the jump
 			 */
 			if (instructions[ud.mnemonic].jump > 1) {
-			//	printf("Follow other leg of a jump\n");
 				if ((node->children[1] =
 				    dm_find_cfg_node_starting(ud.pc)) != NULL) {
-			//		printf("Node already exists at target!\n");
 					dm_add_parent(node->children[1], node);
 					break;
 				}
@@ -472,7 +460,7 @@ dm_split_cfg_block(struct dm_cfg_node *node, NADDR addr)
 	for (dm_seek(node->start); addr2 + read < addr; addr2 += read)
 		read = ud_disassemble(&ud);
 
-	node->end = addr2;// - read;
+	node->end = addr2;
 
 	/* Head has only one child - the tail node */
 	node->children = calloc(2, sizeof(void*));
@@ -639,7 +627,6 @@ struct dm_cfg_node*
 dm_get_unvisited_node()
 {
 	for (p = p_head; p != NULL; p = p->next) {
-		//if (p->ptr != NULL)
 		if (!((struct dm_cfg_node*)(p->ptr))->visited)
 			return p->ptr;
 	}
