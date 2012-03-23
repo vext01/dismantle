@@ -558,7 +558,9 @@ int
 dm_settings_init()
 {
 	dm_setting_add_int("cfg.verbose", 0,
-	    "Control flow graph verbosity (0 = postorder, 1=address, 2=full)");
+	    "Control flow graph verbosity (0=postorder, 1=address, 2=full)");
+	dm_setting_add_int("cfg.fcalls", 0,
+	    "Control flow graph, follow calls? (0=don't, 1=internal, 2=all");
 	dm_setting_add_str("cfg.outfile", "XXX", "CFG output file");
 	dm_setting_add_str("cfg.gvfile", "XXX", "Graphviz CFG output file");
 	dm_setting_add_int("pref.ansi", -1, "Use ANSI colour terminal");

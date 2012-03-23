@@ -32,6 +32,8 @@ struct dm_instruction_se *instructions = NULL;
 
 void **rpost; /* Pointers to nodes in reverse post-order */
 
+int fcalls_i = 0;
+
 /*
  * Generate static CFG for a function.
  * Continues until it reaches ret, does not follow calls.
@@ -124,6 +126,12 @@ dm_check_cfg_consistency()
 void
 dm_init_cfg()
 {
+	struct	dm_setting *fcalls = NULL;
+
+	/* Get fcalls setting */
+	dm_find_setting("cfg.fcalls", &fcalls);
+	fcalls_i = fcalls->val.ival;
+
 	dm_instruction_se_init();
 }
 
@@ -198,7 +206,8 @@ dm_instruction_se_init()
 	instructions[UD_Ijge].jump = 2;
 
 	instructions[UD_Icall].write = 0;
-	instructions[UD_Icall].jump = 2;
+	if (fcalls_i)
+		instructions[UD_Icall].jump = 2;
 
 	instructions[UD_Iadd].disjunctive = 1;
 
@@ -300,7 +309,8 @@ dm_gen_cfg_block(struct dm_cfg_node *node)
 				local_target = 0;
 		}
 
-		if (instructions[ud.mnemonic].jump) {
+		if (instructions[ud.mnemonic].jump && (local_target ||
+		    ((!local_target) && (fcalls_i == 2)))) {
 			/* Get the target of the jump instruction */
 			target = dm_get_jump_target(ud);
 

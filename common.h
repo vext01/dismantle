@@ -130,4 +130,6 @@ extern struct dm_file_info	file_info;
 
 extern FILE	*f;
 
+int dm_find_setting(char *name, struct dm_setting **s);
+
 #endif
